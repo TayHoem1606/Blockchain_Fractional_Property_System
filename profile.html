@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>User Profile</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.2.7-rc.0/web3.min.js"></script>
+
+  <style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px}
+    .header{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-radius:15px;padding:20px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 10px 30px rgba(0,0,0,.1)}
+    .user-info h2{color:#2d3748;margin-bottom:5px}
+    .wallet-address{font-family:ui-monospace, SFMono-Regular, Menlo, monospace;color:#4c51bf;font-size:14px;background:#f7fafc;padding:5px 10px;border-radius:5px;margin-bottom:5px}
+    .user-role{color:#16a34a;font-weight:600;text-transform:uppercase;font-size:12px}
+    .logout-btn{background:#dc2626;color:#fff;border:0;padding:10px 20px;border-radius:8px;cursor:pointer;font-weight:500;transition:.2s}
+    .logout-btn:hover{background:#b91c1c;transform:translateY(-2px)}
+    .container{display:grid;grid-template-columns:1fr 1fr;gap:20px;max-width:1200px;margin:0 auto}
+    .card{background:rgba(255,255,255,.95);backdrop-filter:blur(10px);border-radius:15px;padding:25px;box-shadow:0 10px 30px rgba(0,0,0,.1);border:1px solid rgba(255,255,255,.2)}
+    .card h3{color:#2d3748;margin-bottom:20px;font-size:18px;border-bottom:2px solid #e2e8f0;padding-bottom:10px}
+    .form-group{margin-bottom:20px}
+    .form-label{display:block;margin-bottom:5px;color:#4a5568;font-weight:500;font-size:14px}
+    .form-input{width:100%;padding:12px;border:2px solid #e2e8f0;border-radius:8px;font-size:16px;transition:.2s}
+    .form-input:focus{outline:none;border-color:#667eea;box-shadow:0 0 0 3px rgba(102,126,234,.1)}
+    .btn{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;border:0;padding:12px 20px;border-radius:8px;cursor:pointer;font-weight:600;transition:.2s;margin-right:10px;margin-bottom:10px}
+    .btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 5px 15px rgba(102,126,234,.3)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .btn-danger{background:linear-gradient(135deg,#dc2626,#b91c1c)}
+    .btn-success{background:linear-gradient(135deg,#16a34a,#15803d)}
+    .message{padding:12px;border-radius:8px;margin-bottom:15px;font-size:14px}
+    .message-success{background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0}
+    .message-error{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+    .message-info{background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe}
+    .profile-display{background:#f8fafc;padding:15px;border-radius:8px;margin-bottom:15px}
+    .profile-display .field{display:flex;justify-content:space-between;margin-bottom:10px}
+    .profile-display .label{font-weight:500;color:#4a5568}
+    .profile-display .value{color:#2d3748}
+    .admin-section,.super-admin-section{display:none}
+    .hidden{display:none}
+    .loading{display:inline-block;width:16px;height:16px;border:2px solid #f3f3f3;border-top:2px solid #667eea;border-radius:50%;animation:spin 1s linear infinite;margin-right:5px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media (max-width:768px){.container{grid-template-columns:1fr}.header{flex-direction:column;text-align:center;gap:15px}}
+    .user-search-result{background:#f8fafc;padding:15px;border-radius:8px;margin-top:15px;border:1px solid #e2e8f0}
+    .blacklist-status{font-weight:700}
+    .blacklist-status.blacklisted{color:#dc2626}
+    .blacklist-status.active{color:#16a34a}
+    .blacklist-status.locked{color:#dc2626;font-weight:700}
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="user-info">
+      <h2 id="userName">Loading...</h2>
+      <div id="walletAddress" class="wallet-address">Connecting...</div>
+      <div id="userRole" class="user-role">Loading...</div>
+    </div>
+    <button id="logoutBtn" class="logout-btn">Logout</button>
+  </div>
+
+  <!-- Role-aware navbar -->
+  <div id="navbar"></div>
+
+  <!-- Main -->
+  <div class="container" style="margin-top: 5vh;">
+    <!-- Profile -->
+    <div class="card">
+      <h3>Profile Information</h3>
+      <div id="profileMessages"></div>
+
+      <div id="profileDisplay" class="profile-display">
+        <div class="field"><span class="label">Email:</span><span class="value" id="displayEmail">-</span></div>
+        <div class="field"><span class="label">Name:</span><span class="value" id="displayName">-</span></div>
+        <div class="field"><span class="label">Phone:</span><span class="value" id="displayPhone">-</span></div>
+        <div class="field"><span class="label">Role:</span><span class="value" id="displayRole">-</span></div>
+      </div>
+
+      <button id="editProfileBtn" class="btn">Edit Profile</button>
+
+      <div id="editProfileForm" class="hidden">
+        <div class="form-group">
+          <label class="form-label" for="editName">Full Name:</label>
+          <input type="text" id="editName" class="form-input" placeholder="Enter your full name">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="editPhone">Phone Number:</label>
+          <input type="tel" id="editPhone" class="form-input" placeholder="Enter your phone number">
+        </div>
+        <button id="saveProfileBtn" class="btn btn-success">Save Changes</button>
+        <button id="cancelEditBtn" class="btn">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Change Password -->
+    <div class="card">
+      <h3>Change Password</h3>
+      <div id="passwordMessages"></div>
+      <div class="form-group">
+        <label class="form-label" for="oldPassword">Current Password:</label>
+        <input type="password" id="oldPassword" class="form-input" placeholder="Enter current password">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="newPassword">New Password:</label>
+        <input type="password" id="newPassword" class="form-input" placeholder="Enter new password (min 6 characters)">
+      </div>
+      <button id="changePasswordBtn" class="btn">Change Password</button>
+    </div>
+
+    <!-- Admin Tools -->
+    <div class="card admin-section">
+      <h3>Admin Tools</h3>
+      <div id="adminMessages"></div>
+
+      <div class="form-group">
+        <label class="form-label" for="searchUserAddress">Search User by Address:</label>
+        <input type="text" id="searchUserAddress" class="form-input" placeholder="Enter wallet address">
+      </div>
+      <button id="searchUserBtn" class="btn">Search User</button>
+
+      <div id="userSearchResult" class="hidden">
+        <div class="user-search-result">
+          <h4>User Details:</h4>
+          <div class="field"><span class="label">Email:</span><span class="value" id="searchedEmail">-</span></div>
+          <div class="field"><span class="label">Name:</span><span class="value" id="searchedName">-</span></div>
+          <div class="field"><span class="label">Phone:</span><span class="value" id="searchedPhone">-</span></div>
+          <div class="field"><span class="label">Role:</span><span class="value" id="searchedRole">-</span></div>
+          <div class="field"><span class="label">Status:</span><span class="value blacklist-status" id="searchedStatus">-</span></div>
+          <button id="toggleBlacklistBtn" class="btn btn-danger">Toggle Blacklist</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Super Admin Tools -->
+    <div class="card super-admin-section">
+      <h3>Super Admin Tools</h3>
+      <div id="superAdminMessages"></div>
+
+      <h4 style="margin-top:20px;margin-bottom:15px;">Add New Admin</h4>
+      <div class="form-group"><label class="form-label" for="adminAddress">Admin Wallet Address:</label><input type="text" id="adminAddress" class="form-input" placeholder="Enter wallet address"></div>
+      <div class="form-group"><label class="form-label" for="adminEmail">Admin Email:</label><input type="email" id="adminEmail" class="form-input" placeholder="Enter admin email"></div>
+      <div class="form-group"><label class="form-label" for="adminPassword">Admin Password:</label><input type="password" id="adminPassword" class="form-input" placeholder="Enter admin password"></div>
+      <div class="form-group"><label class="form-label" for="adminName">Admin Full Name:</label><input type="text" id="adminName" class="form-input" placeholder="Enter admin full name"></div>
+      <div class="form-group"><label class="form-label" for="adminPhone">Admin Phone:</label><input type="tel" id="adminPhone" class="form-input" placeholder="Enter admin phone"></div>
+      <button id="addAdminBtn" class="btn btn-success">Add Admin</button>
+    </div>
+  </div>
+
+  <!-- addresses + ABIs + navbar -->
+  <script src="contract.js"></script>
+  <script src="nav.js"></script>
+
+  <script>
+    // Globals
+    let account, web3, contract, all, userProfile = {}, currentSearchedUser = null;
+
+    window.addEventListener('load', () => initializeApp());
+
+    async function initializeApp() {
+      try {
+        await connectWalletAndContract();
+        await new Promise(r => setTimeout(r, 300)); // small settle
+        const ok = await checkUserRegistration();
+        if (!ok) return redirectLogin('User not registered. Redirecting to login…');
+        await loadProfile();
+        setupEventListeners();
+      } catch (e) {
+        console.error(e);
+        redirectLogin('Failed to initialize: ' + (e.message || e));
+      }
+    }
+
+    async function connectWalletAndContract() {
+      if (!window.ethereum) throw new Error('MetaMask not detected. Please install it.');
+      const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
+      account = accounts[0];
+      document.getElementById('walletAddress').textContent = account;
+
+      web3 = new Web3(window.ethereum);
+
+      // default → UserManager (keeps existing behavior)
+      contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+
+      // also prepare other contracts for future sections (buy/history/etc.)
+      all = await getContracts(web3);
+
+      ethereum.on('accountsChanged', (accs) => {
+        if (!accs || !accs.length) return location.href='index.html';
+        location.reload();
+      });
+      ethereum.on('chainChanged', () => location.reload());
+    }
+
+    async function checkUserRegistration() {
+      try {
+        const registered = await contract.methods.isRegistered(account).call();
+        if (!registered) return false;
+
+        const blacklisted = await contract.methods.isBlacklisted(account).call();
+        if (blacklisted) { showMsg('profileMessages','Account is blacklisted.','error'); setTimeout(()=>location.href='index.html',2000); return false; }
+
+        const locked = await contract.methods.isAccountLocked(account).call();
+        if (locked) {
+          const remaining = await contract.methods.getLockoutTimeRemaining(account).call();
+          showMsg('profileMessages',`Account locked. Try again in ${Math.ceil(remaining/60)} minutes.`,'error');
+          setTimeout(()=>location.href='index.html',2000); return false;
+        }
+        return true;
+      } catch (e) {
+        showMsg('profileMessages','Error checking user status: '+(e.message||e),'error');
+        return false;
+      }
+    }
+
+    async function loadProfile() {
+      try {
+        showMsg('profileMessages','Loading profile…','info');
+        const p = await contract.methods.getMyProfile().call({ from: account });
+        userProfile = { email:p.email, name:p.name, phone:p.phone, role:p.role };
+
+        document.getElementById('userName').textContent = userProfile.name;
+        document.getElementById('userRole').textContent = userProfile.role;
+        document.getElementById('displayEmail').textContent = userProfile.email;
+        document.getElementById('displayName').textContent = userProfile.name;
+        document.getElementById('displayPhone').textContent = userProfile.phone;
+        document.getElementById('displayRole').textContent = userProfile.role;
+
+        if (userProfile.role === 'Admin') {
+          document.querySelector('.admin-section').style.display = 'block';
+          const superAdmin = await contract.methods.superAdmin().call();
+          if (account.toLowerCase() === superAdmin.toLowerCase()) {
+            document.querySelector('.super-admin-section').style.display = 'block';
+          }
+        }
+        clearMsg('profileMessages');
+      } catch (_) {
+        showMsg('profileMessages','Failed to load profile.','error');
+      }
+    }
+
+    async function updateUser() {
+      const name = document.getElementById('editName').value.trim();
+      const phone = document.getElementById('editPhone').value.trim();
+      if (!name || !phone) return showMsg('profileMessages','Please fill in all fields','error');
+
+      try {
+        const btn = document.getElementById('saveProfileBtn');
+        btn.disabled = true; btn.innerHTML = '<div class="loading"></div>Saving…';
+        showMsg('profileMessages','Updating profile… confirm in wallet.','info');
+
+        let gas = 300000;
+        try { gas = Math.floor((await contract.methods.updateUser(name, phone).estimateGas({from:account})) * 1.2); } catch {}
+        const gasPrice = await web3.eth.getGasPrice();
+
+        await contract.methods.updateUser(name, phone).send({ from:account, gas, gasPrice });
+        await loadProfile();
+        document.getElementById('editProfileForm').classList.add('hidden');
+        document.getElementById('editProfileBtn').style.display='block';
+        showMsg('profileMessages','Profile updated successfully!','success');
+      } catch (e) {
+        showMsg('profileMessages','Profile update failed: '+(e.message||e),'error');
+      } finally {
+        const btn = document.getElementById('saveProfileBtn');
+        btn.disabled = false; btn.textContent = 'Save Changes';
+      }
+    }
+
+    async function changePassword() {
+      const oldPw = document.getElementById('oldPassword').value;
+      const newPw = document.getElementById('newPassword').value;
+      if (!oldPw || !newPw)  return showMsg('passwordMessages','Please fill in both password fields','error');
+      if (newPw.length < 6) return showMsg('passwordMessages','New password must be at least 6 characters','error');
+
+      try {
+        const btn = document.getElementById('changePasswordBtn');
+        btn.disabled = true; btn.innerHTML = '<div class="loading"></div>Changing…';
+        showMsg('passwordMessages','Changing password… confirm in wallet.','info');
+
+        let gas = 300000;
+        try { gas = Math.floor((await contract.methods.changePassword(oldPw, newPw).estimateGas({from:account})) * 1.2); } catch {}
+        const gasPrice = await web3.eth.getGasPrice();
+
+        await contract.methods.changePassword(oldPw, newPw).send({ from:account, gas, gasPrice });
+        document.getElementById('oldPassword').value = '';
+        document.getElementById('newPassword').value = '';
+        showMsg('passwordMessages','Password changed successfully!','success');
+      } catch (e) {
+           if (e.message?.includes('Internal JSON-RPC error')) {
+              showMsg('passwordMessages','Current password wrong','error');
+            } else {
+              showMsg('passwordMessages','Password change failed: '+(e.message||e),'error');
+            }
+      } finally {
+        const btn = document.getElementById('changePasswordBtn');
+        btn.disabled = false; btn.textContent = 'Change Password';
+      }
+    }
+
+    async function getUserProfileByAddress() {
+      const address = document.getElementById('searchUserAddress').value.trim();
+      if (!address) return showMsg('adminMessages','Please enter a wallet address','error');
+      if (!web3.utils.isAddress(address)) return showMsg('adminMessages','Invalid address format','error');
+
+      try {
+        const btn = document.getElementById('searchUserBtn');
+        btn.disabled = true; btn.innerHTML = '<div class="loading"></div>Searching…';
+        showMsg('adminMessages','Searching for user…','info');
+
+        const u = await contract.methods.getUserInfo(address).call({ from: account });
+        if (!u.isRegistered) {
+          document.getElementById('userSearchResult').classList.add('hidden');
+          return showMsg('adminMessages','User not found or not registered','error');
+        }
+
+        document.getElementById('searchedEmail').textContent = u.email;
+        document.getElementById('searchedName').textContent  = u.name;
+        document.getElementById('searchedPhone').textContent = u.phone;
+        document.getElementById('searchedRole').textContent  = u.role;
+
+        const locked = u.isLocked, black = u.isBlacklisted;
+        const statusText  = locked ? 'LOCKED' : (black ? 'BLACKLISTED' : 'ACTIVE');
+        const statusClass = locked ? 'locked' : (black ? 'blacklisted' : 'active');
+        const status = document.getElementById('searchedStatus');
+        status.textContent = statusText + (u.failedLoginAttempts>0 ? ` (${u.failedLoginAttempts} failed attempts)` : '');
+        status.className = `blacklist-status ${statusClass}`;
+
+        currentSearchedUser = { address, isBlacklisted:black, isLocked:locked };
+
+        const toggleBtn = document.getElementById('toggleBlacklistBtn');
+        toggleBtn.textContent = locked ? 'Unlock Account' : (black ? 'Remove from Blacklist' : 'Add to Blacklist');
+        toggleBtn.className   = locked ? 'btn btn-success' : (black ? 'btn btn-success' : 'btn btn-danger');
+
+        document.getElementById('userSearchResult').classList.remove('hidden');
+        clearMsg('adminMessages');
+      } catch (e) {
+        document.getElementById('userSearchResult').classList.add('hidden');
+        showMsg('adminMessages','Failed to fetch user: '+(e.message||e),'error');
+      } finally {
+        const btn = document.getElementById('searchUserBtn');
+        btn.disabled = false; btn.textContent = 'Search User';
+      }
+    }
+
+    async function toggleBlacklistStatus() {
+      if (!currentSearchedUser) return showMsg('adminMessages','No user selected','error');
+      try {
+        const btn = document.getElementById('toggleBlacklistBtn');
+        btn.disabled = true; btn.innerHTML = '<div class="loading"></div>Updating…';
+
+        const gasPrice = await web3.eth.getGasPrice();
+        let gas = 300000;
+
+        if (currentSearchedUser.isLocked) {
+          try { gas = Math.floor((await contract.methods.unlockAccount(currentSearchedUser.address).estimateGas({from:account})) * 1.2); } catch {}
+          showMsg('adminMessages','Unlocking account…','info');
+          await contract.methods.unlockAccount(currentSearchedUser.address).send({ from:account, gas, gasPrice });
+          showMsg('adminMessages','Account unlocked.','success');
+        } else {
+          const newStatus = !currentSearchedUser.isBlacklisted;
+          try { gas = Math.floor((await contract.methods.setBlacklistStatus(currentSearchedUser.address, newStatus).estimateGas({from:account})) * 1.2); } catch {}
+          showMsg('adminMessages','Updating blacklist status…','info');
+          await contract.methods.setBlacklistStatus(currentSearchedUser.address, newStatus).send({ from:account, gas, gasPrice });
+          showMsg('adminMessages', newStatus ? 'User blacklisted.' : 'User removed from blacklist.', 'success');
+        }
+
+        await getUserProfileByAddress();
+      } catch (e) {
+        showMsg('adminMessages','Failed to update user: '+(e.message||e),'error');
+      } finally {
+        const btn = document.getElementById('toggleBlacklistBtn');
+        btn.disabled = false;
+      }
+    }
+
+    async function addAdmin() {
+      const address = document.getElementById('adminAddress').value.trim();
+      const email   = document.getElementById('adminEmail').value.trim();
+      const pw      = document.getElementById('adminPassword').value;
+      const name    = document.getElementById('adminName').value.trim();
+      const phone   = document.getElementById('adminPhone').value.trim();
+
+      if (!address || !email || !pw || !name || !phone) return showMsg('superAdminMessages','Please fill in all fields','error');
+      if (!web3.utils.isAddress(address)) return showMsg('superAdminMessages','Invalid wallet address','error');
+      if (pw.length < 6) return showMsg('superAdminMessages','Password must be at least 6 characters','error');
+      if (!/^\S+@\S+\.\S+$/.test(email)) return showMsg('superAdminMessages','Enter a valid email','error');
+
+      try {
+        const btn = document.getElementById('addAdminBtn');
+        btn.disabled = true; btn.innerHTML = '<div class="loading"></div>Adding…';
+        showMsg('superAdminMessages','Adding new admin…','info');
+
+        let gas = 500000; try { gas = Math.floor((await contract.methods.addAdmin(address,email,pw,name,phone).estimateGas({from:account})) * 1.2); } catch {}
+        const gasPrice = await web3.eth.getGasPrice();
+
+        await contract.methods.addAdmin(address,email,pw,name,phone).send({ from:account, gas, gasPrice });
+
+        ['adminAddress','adminEmail','adminPassword','adminName','adminPhone'].forEach(id => document.getElementById(id).value='');
+        showMsg('superAdminMessages','Admin added successfully!','success');
+      } catch (e) {
+          if (e.message?.includes('Internal JSON-RPC error')) {
+            showMsg('superAdminMessages','Admin already exists','error');
+          } else {
+            showMsg('superAdminMessages','Failed to add admin: '+(e.message||e),'error');
+          }
+      } finally {
+        const btn = document.getElementById('addAdminBtn');
+        btn.disabled = false; btn.textContent = 'Add Admin';
+      }
+    }
+
+    function logout(){ account=null; web3=null; contract=null; userProfile={}; location.href='index.html'; }
+
+    function setupEventListeners(){
+      document.getElementById('editProfileBtn').addEventListener('click', ()=>{
+        document.getElementById('editProfileForm').classList.remove('hidden');
+        document.getElementById('editProfileBtn').style.display='none';
+        document.getElementById('editName').value  = userProfile.name;
+        document.getElementById('editPhone').value = userProfile.phone;
+      });
+      document.getElementById('cancelEditBtn').addEventListener('click', ()=>{
+        document.getElementById('editProfileForm').classList.add('hidden');
+        document.getElementById('editProfileBtn').style.display='block';
+      });
+      document.getElementById('saveProfileBtn').addEventListener('click', updateUser);
+      document.getElementById('changePasswordBtn').addEventListener('click', changePassword);
+      document.getElementById('searchUserBtn').addEventListener('click', getUserProfileByAddress);
+      document.getElementById('toggleBlacklistBtn').addEventListener('click', toggleBlacklistStatus);
+      document.getElementById('addAdminBtn').addEventListener('click', addAdmin);
+      document.getElementById('logoutBtn').addEventListener('click', logout);
+      document.getElementById('searchUserAddress').addEventListener('keypress', e => { if(e.key==='Enter') getUserProfileByAddress(); });
+      document.getElementById('newPassword').addEventListener('keypress', e => { if(e.key==='Enter') changePassword(); });
+    }
+
+    function showMsg(id,msg,type){ const el=document.getElementById(id); const cls= type==='error'?'message-error':type==='success'?'message-success':'message-info'; el.innerHTML=`<div class="message ${cls}">${msg}</div>`; }
+    function clearMsg(id){ document.getElementById(id).innerHTML=''; }
+    function redirectLogin(msg){ showMsg('profileMessages',msg,'error'); setTimeout(()=>location.href='index.html',2000); }
+  </script>
+</body>
+</html>

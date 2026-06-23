@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Buy Property</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.2.7-rc.0/web3.min.js"></script>
+    <script src="contract.js"></script>
+    <style>
+      body {
+        font-family: system-ui, Segoe UI, Roboto, Ubuntu, sans-serif;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        min-height: 100vh;
+        padding: 16px;
+        color: #111;
+      }
+      .shell {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      /* Header with merged nav */
+      .header {
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        border-radius: 16px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+        padding: 14px 16px;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 14px;
+        align-items: center;
+      }
+      .brand {
+        font-weight: 900;
+        font-size: 18px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .tabs {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .tab {
+        padding: 8px 12px;
+        border-radius: 10px;
+        text-decoration: none;
+        color: #374151;
+        font-weight: 700;
+      }
+      .tab:hover {
+        background: #f3f4f6;
+      }
+      .tab--active {
+        background: #eef2ff;
+        color: #3730a3;
+      }
+      .addr {
+        font-size: 12px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #4c51bf;
+        background: #f7fafc;
+        padding: 6px 10px;
+        border-radius: 10px;
+        border: 1px solid #e5e7eb;
+      }
+
+      .card {
+        background: #fff;
+        border-radius: 16px;
+        padding: 20px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        margin-top: 18px;
+      }
+      h3 {
+        margin: 0 0 12px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        padding: 12px;
+        border-bottom: 1px solid #e5e7eb;
+        text-align: left;
+      }
+      th {
+        background: #f9fafb;
+        font-size: 14px;
+        color: #374151;
+      }
+      input[type="number"] {
+        width: 80px;
+        padding: 7px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+      }
+      button {
+        padding: 9px 12px;
+        border: 0;
+        border-radius: 10px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: #fff;
+        font-weight: 800;
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      .status {
+        margin-top: 14px;
+        font-size: 14px;
+        padding: 10px;
+        border-radius: 10px;
+        border: 1px dashed #e5e7eb;
+        background: #fafafa;
+      }
+      .ok {
+        background: #ecfdf5;
+        color: #065f46;
+        border-color: #a7f3d0;
+      }
+      .err {
+        background: #fef2f2;
+        color: #991b1b;
+        border-color: #fecaca;
+      }
+      .muted {
+        color: #6b7280;
+      }
+      .right {
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <!-- Header / tabs merged -->
+      <div class="header">
+        <a class="brand" href="profile.html">G4</a>
+        <nav class="tabs" id="tabs"></nav>
+        <div class="addr" id="wallet">—</div>
+      </div>
+
+      <!-- Available properties -->
+      <div class="card">
+        <h3>Available Properties</h3>
+        <table id="propTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Location</th>
+              <th>Price (ETH)</th>
+              <th>Tokens Left</th>
+              <th>Buy</th>
+            </tr>
+          </thead>
+          <tbody id="propBody"></tbody>
+        </table>
+        <div id="msg" class="status">—</div>
+      </div>
+
+      <!-- My Holdings -->
+      <div class="card">
+        <h3>My Holdings</h3>
+        <table id="holdTable">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Name</th>
+              <th>Location</th>
+              <th class="right">Tokens Owned</th>
+              <th class="right">Est. Value (ETH)</th>
+            </tr>
+          </thead>
+          <tbody id="holdBody">
+            <tr>
+              <td colspan="5" class="muted">No holdings yet.</td>
+            </tr>
+          </tbody>
+          <tfoot>
+            <tr>
+              <th colspan="4" class="right">Total Value (ETH)</th>
+              <th class="right" id="holdTotal">0</th>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      let web3, account, all;
+
+      const $ = (id) => document.getElementById(id);
+      const short = (a) => (a ? a.slice(0, 6) + "…" + a.slice(-4) : "");
+
+      async function connect() {
+        if (!window.ethereum) {
+          alert("Please install MetaMask");
+          return;
+        }
+        await ethereum.request({ method: "eth_requestAccounts" });
+        web3 = new Web3(window.ethereum);
+        [account] = await web3.eth.getAccounts();
+        $("wallet").textContent = short(account);
+        all = await getContracts(web3);
+        ethereum.on?.("accountsChanged", () => location.reload());
+        ethereum.on?.("chainChanged", () => location.reload());
+        await buildTabs();
+        await loadProperties();
+        await loadHoldings();
+      }
+
+      async function buildTabs() {
+        const um = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+        let isAdmin = false;
+        try {
+          isAdmin = await um.methods.isAdmin(account).call();
+        } catch {}
+        const base = [
+          { href: "buy.html", label: "Buy Property" },
+          { href: "market.html", label: "Marketplace" },
+          { href: "history.html", label: "Transaction History" },
+        ];
+        const admin = [
+          { href: "create.html", label: "Create Property" },
+          { href: "plan.html", label: "Distribution Plan" },
+        ];
+        const links = isAdmin ? base.concat(admin) : base;
+        const here = location.pathname.split("/").pop().toLowerCase();
+        $("tabs").innerHTML = links
+          .map((l) => {
+            const active =
+              l.href.split("/").pop().toLowerCase() === here
+                ? " tab--active"
+                : "";
+            return `<a class="tab${active}" href="${l.href}">${l.label}</a>`;
+          })
+          .join("");
+      }
+
+      async function loadProperties() {
+        const body = $("propBody");
+        body.innerHTML = "";
+        try {
+          const lastId = await all.createProp.methods
+            .getLastPropertyId()
+            .call();
+          if (+lastId === 0) {
+            body.innerHTML = `<tr><td colspan="6" class="muted">No properties yet.</td></tr>`;
+            return;
+          }
+          let rows = "";
+          for (let i = 1; i <= lastId; i++) {
+            try {
+              const prop = await all.createProp.methods.getProperty(i).call();
+              const remaining = await all.purchase.methods
+                .getRemainingTokens(i)
+                .call();
+              const priceEth = web3.utils.fromWei(
+                prop.price.toString(),
+                "ether"
+              );
+              rows += `
+              <tr>
+                <td>${i}</td>
+                <td>${prop.name}</td>
+                <td>${prop.location}</td>
+                <td>${priceEth}</td>
+                <td>${remaining}</td>
+                <td>
+                  <input type="number" id="amt-${i}" min="1" placeholder="1"/>
+                  <button onclick="buy(${i})">Buy</button>
+                </td>
+              </tr>`;
+            } catch {
+              /* skip missing */
+            }
+          }
+          body.innerHTML =
+            rows ||
+            `<tr><td colspan="6" class="muted">No properties available.</td></tr>`;
+        } catch (e) {
+          $("msg").className = "status err";
+          $("msg").textContent = e.message || "Failed to load properties";
+        }
+      }
+
+      // buy tokens for a property
+      async function buy(propertyId) {
+        const amtEl = $(`amt-${propertyId}`);
+        const amt = parseInt(amtEl.value || "0", 10);
+        if (!amt || amt <= 0) {
+          $("msg").className = "status err";
+          $("msg").textContent = "Enter a token amount";
+          return;
+        }
+        $("msg").className = "status";
+        $("msg").textContent = "Sending transaction…";
+        try {
+          const prop = await all.createProp.methods
+            .getProperty(propertyId)
+            .call();
+          // totalPrice = (prop.price * amount) / prop.numTokens  (same as contract)
+          const totalPrice = web3.utils
+            .toBN(prop.price)
+            .mul(web3.utils.toBN(amt))
+            .div(web3.utils.toBN(prop.numTokens));
+          await all.purchase.methods.buyTokens(propertyId, amt).send({
+            from: account,
+            value: totalPrice.toString(),
+          });
+
+          $("msg").className = "status ok";
+          $("msg").textContent = "Purchase successful!";
+          await loadProperties();
+          await loadHoldings();
+        } catch (e) {
+          $("msg").className = "status err";
+          $("msg").textContent =
+            e?.data?.message || e.message || "Purchase failed";
+        }
+      }
+
+      // list all properties where user owns >0 tokens
+      async function loadHoldings() {
+        const body = $("holdBody");
+        body.innerHTML = "";
+        let total = web3.utils.toBN("0");
+        try {
+          const lastId = await all.createProp.methods
+            .getLastPropertyId()
+            .call();
+          let rows = "";
+          for (let i = 1; i <= lastId; i++) {
+            try {
+              const bal = await all.purchase.methods
+                .getUserBalance(i, account)
+                .call();
+              if (web3.utils.toBN(bal).isZero()) continue;
+
+              const prop = await all.createProp.methods.getProperty(i).call();
+              const priceWeiPerToken = web3.utils
+                .toBN(prop.price)
+                .div(web3.utils.toBN(prop.numTokens));
+              const estWei = priceWeiPerToken.mul(web3.utils.toBN(bal));
+              total = total.add(estWei);
+
+              rows += `
+              <tr>
+                <td>${i}</td>
+                <td>${prop.name}</td>
+                <td>${prop.location}</td>
+                <td class="right">${bal}</td>
+                <td class="right">${web3.utils.fromWei(estWei, "ether")}</td>
+              </tr>`;
+            } catch {
+              /* skip */
+            }
+          }
+          body.innerHTML =
+            rows ||
+            `<tr><td colspan="5" class="muted">No holdings yet.</td></tr>`;
+          $("holdTotal").textContent = web3.utils.fromWei(total, "ether");
+        } catch (e) {
+          body.innerHTML = `<tr><td colspan="5" class="muted">Failed to load holdings.</td></tr>`;
+        }
+      }
+
+      connect();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Real Estate Platform – Login / Register</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.2.7-rc.0/web3.min.js"></script>
+  <style>
+    :root { --p1:#667eea; --p2:#764ba2; --br:#e5e7eb; --ink:#1f2937; --muted:#6b7280; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      background:linear-gradient(135deg,#6a85f1 0%, #b583f1 100%);
+      min-height:100vh; display:grid; place-items:center;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif; color:var(--ink);
+      padding:18px;
+    }
+    .card{ width:min(820px,94vw); background:#fff; border-radius:20px; box-shadow:0 20px 60px rgba(0,0,0,.15); padding:26px 26px 30px; }
+    .title{font-size:32px;font-weight:800;text-align:center;margin-top:4px}
+    .subtitle{color:#374151;text-align:center;margin:6px 0 18px}
+    .status{border-radius:12px;padding:12px;text-align:center;font-weight:700;border:1px solid transparent;margin-bottom:18px}
+    .ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+    .warn{background:#fffbeb;color:#92400e;border-color:#fde68a}
+    .err{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+    .walletBox{border:1px dashed var(--br);border-radius:12px;padding:12px;background:#fafafa;margin-bottom:16px}
+    .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-weight:700;font-size:12px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    @media (max-width:720px){ .row{grid-template-columns:1fr} }
+    label{display:block;margin:0 0 6px 2px;font-weight:600}
+    input{
+      width:100%;padding:12px 14px;border:1px solid var(--br);border-radius:12px;background:#f9fafb;outline:none;
+    }
+    input:focus{border-color:#6366f1;background:#fff;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+    .btn{width:100%;padding:14px;border:0;border-radius:12px;color:#fff;font-weight:800;cursor:pointer;
+      background:linear-gradient(135deg,var(--p1),var(--p2)); box-shadow:0 14px 30px rgba(102,126,234,.28)}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    .split{display:grid;grid-template-columns:1fr;gap:18px}
+    .panel{border:1px solid #f3f4f6;border-radius:14px;padding:16px}
+    .panel h3{margin-bottom:10px}
+    .divider{display:flex;align-items:center;gap:10px;color:#6b7280;margin:6px 0}
+    .divider:before,.divider:after{content:"";height:1px;background:#e5e7eb;flex:1}
+    .tip{color:var(--muted);font-size:12px;margin-top:8px}
+    .loading{display:inline-block;width:16px;height:16px;border:3px solid #e5e7eb;border-top:3px solid #6366f1;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-3px;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .error{color:#dc2626;font-size:13px}
+    .success{color:#059669;font-size:13px}
+    .warning{color:#d97706;font-size:13px}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="conn" class="status warn">Connecting to MetaMask…</div>
+
+    <div class="walletBox" id="walletBox" style="display:none">
+      <div><span class="pill">Connected Wallet</span> <span id="addr" style="font-family:ui-monospace, SFMono-Regular, Menlo, monospace;"></span></div>
+      <div style="color:#6b7280;font-size:13px;margin-top:4px">Network: <span id="net">–</span></div>
+    </div>
+
+    <h1 class="title">Real Estate Platform</h1>
+    <p class="subtitle">Fractional Property Investment</p>
+
+    <div class="split">
+      <!-- LOGIN -->
+      <div class="panel">
+        <h3>Login to Platform</h3>
+        <div class="row">
+          <div>
+            <label for="email">Email</label>
+            <input id="email" type="email" placeholder="you@mail.com" />
+          </div>
+          <div>
+            <label for="password">Password</label>
+            <input id="password" type="password" placeholder="••••••••" />
+          </div>
+        </div>
+        <button id="loginBtn" class="btn" style="margin-top:10px">🔐 Login</button>
+        <div id="loginMsg" class="tip">–</div>
+      </div>
+
+      <div class="divider">or</div>
+
+      <!-- REGISTER (inline) -->
+      <div class="panel">
+        <h3>Create New Account</h3>
+        <div class="row">
+          <div>
+            <label for="rEmail">Email</label>
+            <input id="rEmail" type="email" placeholder="you@mail.com" />
+          </div>
+          <div>
+            <label for="rPassword">Password (min 6)</label>
+            <input id="rPassword" type="password" placeholder="••••••••" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div>
+            <label for="rName">Full Name</label>
+            <input id="rName" placeholder="Alice Lee" />
+          </div>
+          <div>
+            <label for="rPhone">Phone</label>
+            <input id="rPhone" placeholder="+60 12-345 6789" />
+          </div>
+        </div>
+        <button id="registerBtn" class="btn" style="margin-top:10px">📝 Register</button>
+        <div id="regMsg" class="tip">All new accounts start as "User".</div>
+      </div>
+    </div>
+  </div>
+
+  <script src="contract.js"></script>
+  <script>
+    let web3, userMgr, account, all;
+    let failedAttempts = 0;
+    let lockoutEndTime = null;
+    let MAX_ATTEMPTS = 3; // Will be fetched from contract
+    let LOCKOUT_DURATION = 30 * 60 * 1000; // Will be fetched from contract (in milliseconds)
+
+    const $ = (id)=>document.getElementById(id);
+    const set = (el, msg, cls='') => { el.className = 'status ' + cls; el.textContent = msg; };
+
+    // Load contract configuration values
+    async function loadContractConfig() {
+      if (!userMgr) return;
+      
+      try {
+        // Fetch values from smart contract
+        const maxAttempts = await userMgr.methods.getMaxFailedAttempts().call();
+        const lockoutDurationSeconds = await userMgr.methods.getLockoutDuration().call();
+        
+        // Update global variables
+        MAX_ATTEMPTS = parseInt(maxAttempts);
+        LOCKOUT_DURATION = parseInt(lockoutDurationSeconds) * 1000; // Convert to milliseconds
+        
+        console.log(`Contract config loaded: MAX_ATTEMPTS=${MAX_ATTEMPTS}, LOCKOUT_DURATION=${LOCKOUT_DURATION}ms`);
+      } catch (error) {
+        console.error('Error loading contract configuration:', error);
+        // Keep default values if fetching fails
+        console.log('Using default values as fallback');
+      }
+    }
+
+    // Load user's current failed attempts from contract
+    async function loadUserFailedAttempts() {
+      if (!userMgr || !account) return;
+      
+      try {
+        const userInfo = await userMgr.methods.getMyFailedLoginAttempts().call({ from: account });
+        failedAttempts = parseInt(userInfo.failedAttempts);
+        
+        // Check if user is locked on contract
+        if (userInfo.isLocked) {
+          const lockoutTimeRemaining = parseInt(userInfo.lockoutTimeRemaining);
+          lockoutEndTime = Date.now() + (lockoutTimeRemaining * 1000);
+        } else {
+          lockoutEndTime = null;
+        }
+        
+        console.log(`User attempts loaded: ${failedAttempts}/${MAX_ATTEMPTS}, locked: ${userInfo.isLocked}`);
+      } catch (error) {
+        console.error('Error loading user failed attempts:', error);
+        // Fall back to localStorage if contract call fails
+        loadFailedAttempts();
+      }
+    }
+
+    // Load failed attempts from localStorage (fallback)
+    function loadFailedAttempts() {
+      const stored = localStorage.getItem('failedAttempts_' + (account || 'unknown'));
+      const storedLockout = localStorage.getItem('lockoutEndTime_' + (account || 'unknown'));
+      
+      if (stored) failedAttempts = parseInt(stored);
+      if (storedLockout) lockoutEndTime = parseInt(storedLockout);
+    }
+
+    // Save failed attempts to localStorage (backup)
+    function saveFailedAttempts() {
+      if (account) {
+        localStorage.setItem('failedAttempts_' + account, failedAttempts.toString());
+        if (lockoutEndTime) {
+          localStorage.setItem('lockoutEndTime_' + account, lockoutEndTime.toString());
+        }
+      }
+    }
+
+    // Check if current wallet is registered
+    async function checkIfRegistered() {
+      if (!web3 || !account) return;
+      
+      try {
+        const isReg = await userMgr.methods.isRegistered(account).call();
+        const regBtn = $('registerBtn');
+        const regMsg = $('regMsg');
+        
+        if (isReg) {
+          regBtn.disabled = true;
+          regBtn.innerHTML = '✅ Already Registered';
+          regMsg.textContent = 'This wallet is already registered. You can login above.';
+          regMsg.className = 'tip warning';
+          
+          // Clear registration form
+          $('rEmail').value = '';
+          $('rPassword').value = '';
+          $('rName').value = '';
+          $('rPhone').value = '';
+          
+          // Disable all registration inputs
+          [$('rEmail'), $('rPassword'), $('rName'), $('rPhone')].forEach(input => {
+            input.disabled = true;
+            input.style.opacity = '0.6';
+          });
+        } else {
+          regBtn.disabled = false;
+          regBtn.innerHTML = '📝 Register';
+          regMsg.textContent = 'All new accounts start as "User".';
+          regMsg.className = 'tip';
+          
+          // Enable all registration inputs
+          [$('rEmail'), $('rPassword'), $('rName'), $('rPhone')].forEach(input => {
+            input.disabled = false;
+            input.style.opacity = '1';
+          });
+        }
+      } catch (error) {
+        console.error('Error checking registration status:', error);
+        // On error, allow registration attempt
+        const regBtn = $('registerBtn');
+        regBtn.disabled = false;
+        regBtn.innerHTML = '📝 Register';
+      }
+    }
+
+    // Check client-side lockout
+    function checkClientSideLockout() {
+      if (lockoutEndTime && Date.now() < lockoutEndTime) {
+        const remainingTime = Math.ceil((lockoutEndTime - Date.now()) / 60000);
+        const msg = $('loginMsg');
+        msg.textContent = `Account locked. Try again in ${remainingTime} minutes.`;
+        msg.className = 'tip error';
+        
+        const loginBtn = $('loginBtn');
+        loginBtn.disabled = true;
+        loginBtn.innerHTML = `🔒 Locked (${remainingTime} min)`;
+        
+        // Start countdown
+        setTimeout(() => {
+          if (Date.now() >= lockoutEndTime) {
+            // Reset lockout
+            failedAttempts = 0;
+            lockoutEndTime = null;
+            localStorage.removeItem('failedAttempts_' + account);
+            localStorage.removeItem('lockoutEndTime_' + account);
+            
+            loginBtn.disabled = false;
+            loginBtn.innerHTML = '🔐 Login';
+            msg.textContent = 'Account unlocked. You can try logging in again.';
+            msg.className = 'tip success';
+            
+            setTimeout(() => { msg.textContent = '–'; msg.className = 'tip'; }, 3000);
+          } else {
+            checkClientSideLockout();
+          }
+        }, 60000);
+        
+        return true;
+      }
+      return false;
+    }
+
+    // Parse detailed error messages
+    function parseErrorMessage(error) {
+      console.log('Full error:', error);
+      
+      if (error.message?.includes('User denied transaction')) {
+        return { message: 'Transaction was cancelled by user.', shouldCount: false };
+      }
+      
+      if (error.message?.includes('insufficient funds')) {
+        return { message: '💰 Insufficient ETH for gas fees. Please add ETH to your wallet.', shouldCount: false };
+      }
+      
+      // Extract revert reason
+      const revertMatch = error.message?.match(/revert\s+(.+?)(?:\.|"|'|$)/i);
+      const revertReason = revertMatch ? revertMatch[1].trim() : '';
+      
+      if (revertReason.includes('User not registered') || error.message?.includes('User not registered')) {
+        return { message: '⚠️ This wallet is not registered. Please register below.', shouldCount: false };
+      }
+      
+      if (revertReason.includes('Account is blacklisted') || error.message?.includes('blacklisted')) {
+        return { message: '🚫 Your account has been blacklisted. Please contact support.', shouldCount: false };
+      }
+      
+      if (revertReason.includes('temporarily locked') || error.message?.includes('locked')) {
+        return { message: '🔒 Account is temporarily locked due to failed login attempts.', shouldCount: false };
+      }
+      
+      if (revertReason.includes('Email does not match') || error.message?.includes('Email does not match')) {
+        return { message: '📧 Email does not match the registered wallet address.', shouldCount: true };
+      }
+      
+      if (revertReason.includes('Invalid password') || error.message?.includes('Invalid password')) {
+        return { message: '🔑 Invalid password.', shouldCount: true };
+      }
+      
+      // Generic contract errors that suggest invalid credentials
+      if (error.message?.includes('Internal JSON-RPC error')) {
+        return { message: '🔑 Login failed - likely incorrect email or password.', shouldCount: true };
+      }
+      
+      return { message: error.message || 'Unknown error occurred', shouldCount: false };
+    }
+
+    async function connect() {
+      if (!window.ethereum) { set($('conn'),'MetaMask not detected. Please install it.','err'); throw new Error('MetaMask not found'); }
+      set($('conn'),'Requesting wallet access…','warn');
+      await ethereum.request({ method:'eth_requestAccounts' });
+      web3 = new Web3(window.ethereum);
+
+      userMgr = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+      all = await getContracts(web3);
+
+      [account] = await web3.eth.getAccounts();
+      $('addr').textContent = account;
+      const chainId = await ethereum.request({ method: 'eth_chainId' });
+      const nets = {'0x1':'Ethereum Mainnet','0xaa36a7':'Sepolia','0x5':'Goerli','0x539':'Hardhat/Local'};
+      $('net').textContent = nets[chainId] || chainId;
+      $('walletBox').style.display = '';
+      set($('conn'),'Connected to MetaMask and Smart Contract','ok');
+
+      // Load contract configuration and user data
+      await loadContractConfig();
+      await loadUserFailedAttempts();
+
+      // Check registration status and update UI accordingly
+      await checkIfRegistered();
+      
+      checkClientSideLockout();
+
+      ethereum.on?.('accountsChanged', () => {
+        location.reload();
+      });
+      ethereum.on?.('chainChanged', ()=>location.reload());
+    }
+
+    function busy(btn, text){ btn.disabled=true; btn.innerHTML = `<span class="loading"></span>${text}`; }
+    function idle(btn, text){ btn.disabled=false; btn.textContent = text; }
+
+    // LOGIN with enhanced error handling
+    $('loginBtn').addEventListener('click', async ()=>{
+      const btn = $('loginBtn');
+      const msg = $('loginMsg');
+      
+      // Check client-side lockout first
+      if (checkClientSideLockout()) return;
+      
+      try{
+        if(!web3) await connect();
+        const email = $('email').value.trim();
+        const pw = $('password').value;
+        if(!email){ msg.textContent='Enter your email'; msg.className='tip error'; return; }
+        if(!pw){ msg.textContent='Enter your password'; msg.className='tip error'; return; }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if(!emailRegex.test(email)){ msg.textContent='Please enter a valid email address'; msg.className='tip error'; return; }
+
+        // Check wallet registration first
+        const isReg = await userMgr.methods.isRegistered(account).call();
+        if(!isReg){ 
+          msg.textContent='⚠️ This wallet is not registered. Please register below.'; 
+          msg.className='tip error'; 
+          return; 
+        }
+
+        // Check blacklist status
+        const isBlk = await userMgr.methods.isBlacklisted(account).call();
+        if(isBlk){ 
+          msg.textContent='🚫 This wallet is blacklisted. Please contact support.'; 
+          msg.className='tip error'; 
+          return; 
+        }
+
+        // Check contract-level lockout
+        const isLocked = await userMgr.methods.isAccountLocked(account).call();
+        if(isLocked) {
+          try {
+            const lockoutTimeRemaining = await userMgr.methods.getLockoutTimeRemaining(account).call();
+            const minutesRemaining = Math.ceil(parseInt(lockoutTimeRemaining) / 60);
+            msg.textContent = `🔒 Account locked on blockchain. Wait ${minutesRemaining} minutes.`;
+            msg.className = 'tip error';
+            return;
+          } catch(e) {
+            msg.textContent = '🔒 Account is locked. Please wait before trying again.';
+            msg.className = 'tip error';
+            return;
+          }
+        }
+
+        busy(btn,'Logging in…');
+        msg.textContent = 'Sending login request...';
+        msg.className = 'tip';
+
+        await userMgr.methods.login(email, pw).send({ from: account });
+
+        // Reset failed attempts on successful login
+        failedAttempts = 0;
+        lockoutEndTime = null;
+        localStorage.removeItem('failedAttempts_' + account);
+        localStorage.removeItem('lockoutEndTime_' + account);
+
+        msg.textContent = '✅ Login successful! Redirecting...';
+        msg.className = 'tip success';
+        
+        setTimeout(() => {
+          window.location.href = 'profile.html';
+        }, 1500);
+
+      }catch(e){
+        const errorInfo = parseErrorMessage(e);
+        
+        if (errorInfo.shouldCount) {
+          failedAttempts++;
+          saveFailedAttempts();
+          
+          const remaining = MAX_ATTEMPTS - failedAttempts;
+          if (remaining > 0) {
+            errorInfo.message += ` You have ${remaining} attempt${remaining === 1 ? '' : 's'} remaining.`;
+            // Reset button for next attempt
+            idle(btn,'🔐 Login');
+          } else {
+            // Trigger client-side lockout
+            lockoutEndTime = Date.now() + LOCKOUT_DURATION;
+            saveFailedAttempts();
+            
+            const lockoutMinutes = Math.ceil(LOCKOUT_DURATION / 60000);
+            errorInfo.message = `🔒 Too many failed attempts (${MAX_ATTEMPTS}/${MAX_ATTEMPTS}). Account locked for ${lockoutMinutes} minutes.`;
+            btn.disabled = true;
+            btn.innerHTML = `🔒 Account Locked (${lockoutMinutes} min)`;
+            
+            setTimeout(() => checkClientSideLockout(), 1000);
+          }
+        } else {
+          // For non-counting errors, always reset the button
+          idle(btn,'🔐 Login');
+        }
+        
+        msg.textContent = errorInfo.message;
+        msg.className = 'tip error';
+      }finally{
+        // Only reset button if it's not intentionally disabled (locked)
+        if (!btn.disabled || (btn.innerHTML.includes('Logging in') && !lockoutEndTime)) {
+          idle(btn,'🔐 Login');
+        }
+      }
+    });
+
+    // REGISTER with enhanced error handling
+    $('registerBtn').addEventListener('click', async ()=>{
+      const btn = $('registerBtn');
+      const msg = $('regMsg');
+      
+      // Double-check registration status before proceeding
+      if (!web3) await connect();
+      
+      // Check if wallet already registered
+      const already = await userMgr.methods.isRegistered(account).call();
+      if (already) {
+          msg.textContent = 'This wallet is already registered. You can login above.';
+          msg.className = 'tip warning';
+          await checkIfRegistered(); // Update UI
+          return;
+      }
+  
+      try{
+        const email = $('rEmail').value.trim();
+        const pw    = $('rPassword').value;
+        const name  = $('rName').value.trim();
+        const phone = $('rPhone').value.trim();
+
+        if(!email || !pw || !name || !phone){ msg.textContent='Please fill all fields.'; msg.className='tip error'; return; }
+        if(pw.length < 6){ msg.textContent='Password must be at least 6 characters.'; msg.className='tip error'; return; }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if(!emailRegex.test(email)){ msg.textContent='Please enter a valid email address'; msg.className='tip error'; return; }
+
+        // Check account balance
+        const balance = await web3.eth.getBalance(account);
+        if(parseFloat(web3.utils.fromWei(balance, 'ether')) < 0.01) {
+          msg.textContent='💰 Insufficient ETH balance for transaction fees.'; 
+          msg.className='tip error'; 
+          return; 
+        }
+
+        busy(btn,'Registering…');
+        msg.textContent = 'Preparing transaction...';
+        msg.className = 'tip';
+
+        // Estimate gas with buffer
+        let gas;
+        try{
+          gas = await userMgr.methods.registerUser(email, pw, name, phone).estimateGas({ from: account });
+          gas = Math.floor(gas * 1.3);
+        }catch{ gas = 500000; }
+
+        msg.textContent = 'Please confirm transaction in MetaMask...';
+        await userMgr.methods.registerUser(email, pw, name, phone).send({ from: account, gas });
+        
+        msg.textContent = '✅ Registration successful! You can now log in above.';
+        msg.className = 'tip success';
+        $('email').value = email; // Pre-fill login form
+
+        // Clear registration form
+        $('rEmail').value = '';
+        $('rPassword').value = '';
+        $('rName').value = '';
+        $('rPhone').value = '';
+
+        // Re-check registration status to update UI
+        setTimeout(() => checkIfRegistered(), 2000);
+
+      }catch(e){
+        let errorMessage = 'Registration failed: ';
+        
+        if (e.message?.includes('User denied transaction')) {
+          errorMessage += 'Transaction was cancelled by user.';
+        } else if (e.message?.includes('insufficient funds')) {
+          errorMessage += 'Insufficient ETH for gas fees.';
+        } else if (e.message?.includes('Email already registered')) {
+          errorMessage += 'This email address is already registered.';
+        } else if (e.message?.includes('Address already registered')) {
+          errorMessage += 'This wallet address is already registered.';
+          // Registration status will be checked automatically on page reload
+        } else {
+          errorMessage += e?.data?.message || e.message || 'Unknown error occurred.';
+        }
+        
+        msg.textContent = errorMessage;
+        msg.className = 'tip error';
+      }finally{
+        if (!btn.innerHTML.includes('Already Registered')) {
+          idle(btn,'📝 Register');
+        }
+      }
+    });
+
+    // Enter key support
+    [$('email'), $('password')].forEach(el => {
+      el.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') $('loginBtn').click();
+      });
+    });
+
+    [$('rEmail'), $('rPassword'), $('rName'), $('rPhone')].forEach(el => {
+      el.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') $('registerBtn').click();
+      });
+    });
+
+    (async()=>{ try{ await connect(); }catch(_){} })();
+  </script>
+</body>
+</html>

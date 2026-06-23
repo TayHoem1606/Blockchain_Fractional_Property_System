@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Create & Tokenize Property</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.2.7-rc.0/web3.min.js"></script>
+  <script src="contract.js"></script>
+
+  <style>
+    :root{
+      --bg1:#667eea; --bg2:#764ba2;
+      --ink:#1f2937; --muted:#6b7280;
+      --card:#ffffff; --br:#e5e7eb;
+      --tab:#374151; --tabActiveBg:#eef2ff; --tabActive:#3730a3;
+    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{
+      min-height:100vh;
+      background:linear-gradient(135deg,var(--bg1) 0%, var(--bg2) 100%);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;
+      color:var(--ink);
+      padding:16px;
+    }
+
+    /* Header with merged nav */
+    .shell{max-width:1100px;margin:0 auto}
+    .header{
+      background:rgba(255,255,255,.95);
+      backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,.25);
+      border-radius:16px;
+      box-shadow:0 16px 40px rgba(0,0,0,.12);
+      padding:14px 16px;
+      display:grid;
+      grid-template-columns:auto 1fr auto;
+      gap:14px;
+      align-items:center;
+    }
+    .brand{
+      font-weight:900; font-size:18px; letter-spacing:.2px;
+      background:linear-gradient(135deg,var(--bg1),var(--bg2));
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      padding:6px 10px; border-radius:10px;
+    }
+    .tabs{
+      display:flex; gap:8px; flex-wrap:wrap; justify-content:center;
+      padding:4px 6px;
+    }
+    .tab{
+      text-decoration:none; color:var(--tab);
+      padding:8px 12px; border-radius:10px; font-weight:700;
+      transition:.15s background;
+    }
+    .tab:hover{ background:#f3f4f6 }
+    .tab--active{ background:var(--tabActiveBg); color:var(--tabActive) }
+
+    .addr{
+      font-family:ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size:12px; color:#4c51bf; background:#f7fafc;
+      border:1px solid var(--br);
+      border-radius:10px; padding:6px 10px;
+    }
+
+    /* Card */
+    .card{
+      margin:18px auto 0;
+      background:rgba(255,255,255,.96);
+      border:1px solid rgba(255,255,255,.25);
+      border-radius:16px;
+      box-shadow:0 16px 40px rgba(0,0,0,.12);
+      padding:22px;
+      max-width:1100px;
+    }
+    .card h3{font-size:20px;margin-bottom:14px}
+    .hr{height:2px;background:#e5e7eb;margin:10px 0 16px;border-radius:2px}
+
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media (max-width:860px){ .grid{grid-template-columns:1fr} }
+
+    label{display:block;margin:4px 0 6px 2px;color:#4a5568;font-weight:600}
+    input{
+      width:100%;padding:12px 14px;border:2px solid var(--br);
+      background:#f9fafb;border-radius:12px;font-size:15px;
+    }
+    input:focus{outline:none;border-color:#6366f1;background:#fff;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+
+    .btn{
+      padding:12px 16px;border:0;border-radius:12px;color:#fff;font-weight:800;cursor:pointer;
+      background:linear-gradient(135deg,var(--bg1),var(--bg2));
+      box-shadow:0 12px 28px rgba(102,126,234,.28);
+    }
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+
+    .status{
+      margin-top:14px; padding:12px; border-radius:12px; border:1px dashed var(--br);
+      background:#fafafa; color:#374151; font-size:14px;
+    }
+    .ok{background:#ecfdf5;border-color:#a7f3d0;color:#065f46}
+    .err{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+
+    .pill{display:inline-block;padding:3px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-weight:700;font-size:12px}
+    .list{margin-top:10px;font-family:ui-monospace, SFMono-Regular, Menlo, monospace;font-size:13px}
+    .loading{display:inline-block;width:16px;height:16px;border:3px solid #e5e7eb;border-top:3px solid #6366f1;border-radius:50%;animation:spin .8s linear infinite;vertical-align:-3px;margin-right:6px}
+    @keyframes spin{to{transform:rotate(360deg)}}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <!-- Header merged with nav -->
+    <div class="header">
+      <a class="brand" href="profile.html">G4</a>
+      <nav class="tabs" id="tabs"><!-- built by JS --></nav>
+      <div class="addr" id="wallet">—</div>
+    </div>
+
+    <!-- Main card -->
+    <div class="card">
+      <h3>Create & Tokenize Property</h3>
+      <div class="hr"></div>
+
+      <div class="grid">
+        <div>
+          <label for="pName">Property name</label>
+          <input id="pName" placeholder="e.g. Condo KLCC"/>
+        </div>
+        <div>
+          <label for="pLocation">Location</label>
+          <input id="pLocation" placeholder="e.g. Kuala Lumpur"/>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div>
+          <label for="pPriceEth">Total property price (ETH)</label>
+          <input id="pPriceEth" placeholder="e.g. 100"/>
+        </div>
+        <div>
+          <label for="pNumTokens">Number of tokens (supply)</label>
+          <input id="pNumTokens" placeholder="e.g. 1000"/>
+        </div>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:10px;align-items:center">
+        <button id="btnCreate" class="btn">🏗️ Create & Tokenize</button>
+        <span class="muted" style="color:var(--muted)">We’ll mint supply equal to “Number of tokens”.</span>
+      </div>
+
+      <div id="opMsg" class="status">—</div>
+      <div class="list" id="resultList"></div>
+    </div>
+  </div>
+
+  <script>
+    let web3, account, all;
+
+    const $ = (id)=>document.getElementById(id);
+    const set = (el, msg, cls='') => { el.className = 'status ' + cls; el.textContent = msg; };
+    const short = a => a ? a.slice(0,6)+'…'+a.slice(-4) : '';
+
+    async function connect() {
+      if (!window.ethereum) throw new Error('MetaMask not detected.');
+      await ethereum.request({ method:'eth_requestAccounts' });
+      web3 = new Web3(window.ethereum);
+      [account] = await web3.eth.getAccounts();
+      $('wallet').textContent = short(account);
+      all = await getContracts(web3);
+
+      ethereum.on?.('accountsChanged', ()=>location.reload());
+      ethereum.on?.('chainChanged',  ()=>location.reload());
+
+      await buildTabs();
+    }
+
+    async function buildTabs(){
+      // role-aware tabs merged into header
+      const um = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+      let isAdmin = false;
+      try { isAdmin = await um.methods.isAdmin(account).call(); } catch {}
+      const base = [
+        { href:'buy.html',        label:'Buy Property' },
+        { href:'market.html',     label:'Marketplace' },
+        { href:'history.html',    label:'Transaction History' },
+      ];
+      const admin = [
+        { href:'create.html',     label:'Create Property' },
+        { href:'plan.html',       label:'Distribution Plan' },
+      ];
+      const links = isAdmin ? base.concat(admin) : base;
+
+      const here = location.pathname.split('/').pop().toLowerCase();
+      $('tabs').innerHTML = links.map(l=>{
+        const file = l.href.split('/').pop().toLowerCase();
+        const active = (file === here) ? ' tab--active' : '';
+        return `<a class="tab${active}" href="${l.href}">${l.label}</a>`;
+      }).join('');
+    }
+
+    async function createAndTokenize() {
+      try {
+        $('btnCreate').disabled = true;
+        $('btnCreate').innerHTML = '<span class="loading"></span>Working…';
+        set($('opMsg'), 'Preparing…');
+
+        // read inputs
+        const name      = $('pName').value.trim();
+        const location  = $('pLocation').value.trim();
+        const priceEth  = $('pPriceEth').value.trim();
+        const tokensStr = $('pNumTokens').value.trim();
+
+        if (!name || !location || !priceEth || !tokensStr) {
+          set($('opMsg'),'Fill in all fields','err');
+          return;
+        }
+
+        if (!/^\d+$/.test(tokensStr) || Number(tokensStr) <= 0) {
+          set($('opMsg'),'Number of tokens must be a valid positive integer','err');
+          return;
+        }
+
+        const priceWei  = web3.utils.toWei(priceEth, 'ether');
+        const numTokens = web3.utils.toBN(tokensStr);
+
+        // create
+        set($('opMsg'),'Creating property… confirm in wallet.');
+        let gas1;
+        try {
+          gas1 = await all.createProp.methods.createProperty(name, priceWei, location, numTokens).estimateGas({ from: account });
+          gas1 = Math.floor(gas1 * 1.2);
+        } catch { gas1 = 600000; }
+
+        await all.createProp.methods.createProperty(name, priceWei, location, numTokens).send({ from: account, gas: gas1 });
+
+        const propertyId = await all.createProp.methods.getLastPropertyId().call();
+
+        // tokenize
+        set($('opMsg'),`Tokenizing property #${propertyId}…`);
+        let gas2;
+        try {
+          gas2 = await all.tokenise.methods.tokenize(propertyId, numTokens).estimateGas({ from: account });
+          gas2 = Math.floor(gas2 * 1.2);
+        } catch { gas2 = 500000; }
+
+        await all.tokenise.methods.tokenize(propertyId, numTokens).send({ from: account, gas: gas2 });
+
+        const asset = await all.tokenise.methods.getTokenizedAsset(propertyId).call();
+
+        let durationText = '';
+        try {
+          const logs = await all.createProp.getPastEvents('ChangeLogged', {
+            filter: { propertyId: propertyId },
+            fromBlock: 0,
+            toBlock: 'latest'
+          });
+          const lastLog = logs[logs.length - 1];
+          if (lastLog) {
+            const startTime = parseInt(lastLog.returnValues.startTime);
+            const endTime = parseInt(lastLog.returnValues.endTime);
+            const durationSec = parseInt(lastLog.returnValues.durationSeconds);
+
+            const startDate = new Date(startTime * 1000);
+            const endDate   = new Date(endTime * 1000);
+
+            durationText = `
+              <div><span class="pill">Start Time</span> ${startDate.toLocaleString()}</div>
+              <div><span class="pill">End Time</span> ${endDate.toLocaleString()}</div>
+              <div><span class="pill">Duration</span> ${durationSec} sec</div>
+            `;
+          }
+        } catch (e) {
+          console.warn('Failed to fetch duration:', e);
+        }
+        
+        set($('opMsg'),`Success! Property #${propertyId} created and tokenized.`, 'ok');
+        $('resultList').innerHTML = `
+          <div><span class="pill">Property ID</span> ${propertyId}</div>
+          <div><span class="pill">Name</span> ${name}</div>
+          <div><span class="pill">Location</span> ${location}</div>
+          <div><span class="pill">Price (ETH)</span> ${priceEth}</div>
+          <div><span class="pill">Tokens</span> ${numTokens.toString()}</div>
+          <div style="margin-top:6px"><span class="pill">Tokenized?</span> ${asset.tokenized ? 'Yes ✅' : 'No'}</div>
+          <div><span class="pill">Duration</span> ${durationText}</div>
+        `;
+      } catch (e) {
+        set($('opMsg'), (e?.data?.message || e.message || e), 'err');
+      } finally {
+        $('btnCreate').disabled = false;
+        $('btnCreate').textContent = '🏗️ Create & Tokenize';
+      }
+    }
+
+    (async () => {
+      try { await connect(); } catch (e) { set($('opMsg'), e.message || e, 'err'); }
+      $('btnCreate').onclick = createAndTokenize;
+    })();
+
+    // // Fetch the latest ChangeLogged event for this property
+    // (async () => {
+    //   const logs = await all.createProp.getPastEvents('ChangeLogged', {
+    //     filter: { propertyId: propertyId },
+    //     fromBlock: 0,
+    //     toBlock: 'latest'
+    //   });
+
+    //   const lastLog = logs[logs.length - 1];
+
+    //   let durationText = '';
+    //   if (lastLog) {
+    //     const startTime = parseInt(lastLog.returnValues.startTime);
+    //     const endTime = parseInt(lastLog.returnValues.endTime);
+    //     const durationSec = parseInt(lastLog.returnValues.durationSeconds);
+
+    //     const startDate = new Date(startTime * 1000);
+    //     const endDate   = new Date(endTime * 1000);
+
+    //     durationText = `
+    //       <div><span class="pill">Start Time</span> ${startDate.toLocaleString()}</div>
+    //       <div><span class="pill">End Time</span> ${endDate.toLocaleString()}</div>
+    //       <div><span class="pill">Duration</span> ${durationSec} sec</div>
+    //     `;
+    //   }
+    // })();
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Distribution Plan</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.2.7-rc.0/web3.min.js"></script>
+<script src="contract.js"></script>
+<style>
+  :root{
+    --bg1:#667eea; --bg2:#764ba2; --ink:#111; --muted:#6b7280;
+    --line:#e5e7eb; --soft:#f9fafb; --pill:#eef2ff; --pill-ink:#3730a3;
+  }
+  body{font-family:system-ui,Segoe UI,Roboto,Ubuntu,sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));min-height:100vh;margin:0;padding:16px;color:var(--ink)}
+  .wrap{max-width:1100px;margin:0 auto}
+  .header{background:#fff;border-radius:16px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;box-shadow:0 16px 40px rgba(0,0,0,.12)}
+  .brand{font-weight:900;font-size:18px;background:linear-gradient(135deg,var(--bg1),var(--bg2));-webkit-background-clip:text;background-clip:text;color:transparent;text-decoration:none}
+  .tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .tab{padding:8px 12px;border-radius:10px;text-decoration:none;color:#374151;font-weight:700}
+  .tab:hover{background:#f3f4f6}
+  .tab--active{background:var(--pill);color:var(--pill-ink)}
+  .addr{font-size:12px;font-family:ui-monospace,Menlo,monospace;color:#4c51bf;background:#f7fafc;padding:6px 10px;border-radius:10px;border:1px solid var(--line)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+  .card{background:#fff;border-radius:16px;padding:18px;box-shadow:0 16px 40px rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.25)}
+  h3{margin:0 0 12px}
+  label{font-size:12px;color:#374151;font-weight:700}
+  input,select{width:100%;box-sizing:border-box;margin-top:6px;margin-bottom:12px;padding:12px;border:2px solid var(--line);border-radius:12px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{padding:10px 14px;border:0;border-radius:12px;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:#fff;font-weight:800;cursor:pointer}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  .status{margin-top:8px;padding:10px;border-radius:12px;border:1px dashed var(--line);background:#fafafa;font-size:14px}
+  .err{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+  .ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+  table{width:100%;border-collapse:collapse;margin-top:10px}
+  th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+  th{background:var(--soft)}
+  .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <a class="brand" href="profile.html">G4</a>
+    <nav class="tabs" id="tabs"></nav>
+    <div class="addr" id="wallet">—</div>
+  </div>
+
+  <div class="grid">
+    <!-- Create plan -->
+    <div class="card">
+      <h3>Create Plan</h3>
+      <label>Mode</label>
+      <select id="mode">
+        <option value="perToken">Per-Token (perTokenWei)</option>
+        <option value="fixedPool">Fixed Pool (poolWei)</option>
+      </select>
+
+      <label>Property ID</label>
+      <input id="propertyId" type="number" min="1" placeholder="e.g. 1"/>
+
+      <div id="perTokenBox">
+        <label>perToken (ETH)</label>
+        <input id="perTokenEth" type="number" min="0" step="0.000000000000000001" placeholder="e.g. 0.01"/>
+      </div>
+
+      <div id="fixedPoolBox" style="display:none">
+        <label>poolWei (ETH total)</label>
+        <input id="poolEth" type="number" min="0" step="0.000000000000000001" placeholder="e.g. 10"/>
+      </div>
+
+      <div class="row" style="gap:14px">
+        <div style="flex:1">
+          <label>fromDate (optional)</label>
+          <input id="fromDate" type="datetime-local"/>
+        </div>
+        <div style="flex:1">
+          <label>toDate (optional)</label>
+          <input id="toDate" type="datetime-local"/>
+        </div>
+      </div>
+
+      <button class="btn" id="btnCreate">Create Plan</button>
+      <div id="createMsg" class="status">—</div>
+    </div>
+
+    <!-- Preview -->
+    <div class="card">
+      <h3>Preview Plan</h3>
+      <label>Plan ID</label>
+      <input id="planIdPrev" type="number" min="1" placeholder="planId"/>
+      <button class="btn" id="btnPreview">Preview</button>
+      <div id="prevMsg" class="status">—</div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Recipient</th><th>Balance</th><th>Amount (ETH)</th>
+          </tr>
+        </thead>
+        <tbody id="prevBody">
+          <tr><td colspan="4" class="muted">—</td></tr>
+        </tbody>
+      </table>
+
+      <div class="row">
+        <div class="status" id="prevSummary" style="flex:1">—</div>
+      </div>
+
+      <div class="row" style="margin-top:12px">
+        <label style="margin:0">Auto-calc needed ETH for first N:</label>
+        <input id="autoN" type="number" min="1" value="10" style="width:120px"/>
+        <button class="btn" id="btnAuto">Calc</button>
+        <div id="autoMsg" class="status" style="flex:1">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Execute -->
+  <div class="card" style="margin-top:18px">
+    <h3>Execute Plan (Pay Batch)</h3>
+    <div class="row" style="gap:14px">
+      <div style="flex:1">
+        <label>Plan ID</label>
+        <input id="planIdExec" type="number" min="1" placeholder="planId"/>
+      </div>
+      <div style="flex:1">
+        <label>maxCount (how many holders to pay in this tx)</label>
+        <input id="maxCount" type="number" min="1" placeholder="e.g. 25"/>
+      </div>
+      <div style="flex:1">
+        <label>msg.value (ETH to send with tx)</label>
+        <input id="ethValue" type="number" min="0" step="0.000000000000000001" placeholder="e.g. 1.23"/>
+      </div>
+    </div>
+    <button class="btn" id="btnExecute">Execute</button>
+    <div id="execMsg" class="status">—</div>
+  </div>
+</div>
+
+<script>
+let web3, account, all;
+const $=id=>document.getElementById(id);
+const short=a=>a?a.slice(0,6)+'…'+a.slice(-4):'';
+
+(function wireUI(){
+  $('mode').addEventListener('change',()=>{
+    const v = $('mode').value;
+    $('perTokenBox').style.display = v==='perToken' ? '' : 'none';
+    $('fixedPoolBox').style.display = v==='fixedPool' ? '' : 'none';
+  });
+})();
+
+(async function init(){
+  if(!window.ethereum){ alert('Please install MetaMask'); return; }
+  await ethereum.request({method:'eth_requestAccounts'});
+  web3 = new Web3(window.ethereum);
+  [account] = await web3.eth.getAccounts();
+  $('wallet').textContent = short(account);
+
+  all = await getContracts(web3);  // { userManager, createProp, tokenise, purchase, record, history }
+
+  ethereum.on?.('accountsChanged',()=>location.reload());
+  ethereum.on?.('chainChanged', ()=>location.reload());
+
+  await buildTabs();
+  await guardAdmin();
+
+  $('btnCreate').onclick  = onCreate;
+  $('btnPreview').onclick = onPreview;
+  $('btnAuto').onclick    = onAutoCalc;
+  $('btnExecute').onclick = onExecute;
+})();
+
+async function buildTabs(){
+  let isAdmin=false;
+  try{ isAdmin = await all.userManager.methods.isAdmin(account).call(); }catch{}
+  const base = [
+    {href:'buy.html',label:'Buy Property'},
+    {href:'market.html',label:'Marketplace'},
+    {href:'history.html',label:'Transaction History'},
+  ];
+  const admin = [
+    {href:'create.html',label:'Create Property'},
+    {href:'plan.html',label:'Distribution Plan'}
+  ];
+  const links = isAdmin ? base.concat(admin) : base;
+  const here = location.pathname.split('/').pop().toLowerCase();
+  $('tabs').innerHTML = links.map(l=>{
+    const act = (l.href.split('/').pop().toLowerCase()===here)?' tab--active':'';
+    return `<a class="tab${act}" href="${l.href}">${l.label}</a>`;
+  }).join('');
+}
+
+async function guardAdmin(){
+  try{
+    const ok = await all.userManager.methods.isAdmin(account).call();
+    if (!ok){
+      document.querySelectorAll('button,input,select').forEach(el=>el.disabled=true);
+      $('createMsg').className='status err';
+      $('createMsg').textContent='This page is admin-only. Switch to admin wallet.';
+    }
+  }catch{
+    // If userManager not callable, we still let them try; on-chain will revert with "not admin"
+  }
+}
+
+/* ---------------- helpers ---------------- */
+function toUnix(dtInput){
+  // returns 0 if empty; else seconds
+  const v = (dtInput||'').trim();
+  if (!v) return 0;
+  const ms = Date.parse(v);
+  if (isNaN(ms)) return 0;
+  return Math.floor(ms/1000);
+}
+const toWei = (eth)=> web3.utils.toWei(String(eth || 0), 'ether');
+const fromWei = (w)=> { try{ return web3.utils.fromWei(String(w),'ether'); }catch{ return '0'; } };
+
+/* --------------- Create plan --------------- */
+async function onCreate(){
+  const mode = $('mode').value;
+  const propertyId = parseInt(($('propertyId').value||'0'),10);
+  const fromDate = toUnix($('fromDate').value);
+  const toDate   = toUnix($('toDate').value);
+
+  $('createMsg').className='status'; $('createMsg').textContent='—';
+
+  try{
+    if (!propertyId) throw new Error('Property ID required');
+
+    let tx, planId;
+    if (mode==='perToken'){
+      const perTokenEth = $('perTokenEth').value;
+      if (!perTokenEth) throw new Error('perToken (ETH) required');
+      const perTokenWei = toWei(perTokenEth);
+      tx = await all.record.methods.createPlanPerToken(propertyId, perTokenWei, fromDate, toDate)
+            .send({ from: account });
+      // Optionally parse from events; easier to just tell user to preview with latest planId
+      $('createMsg').className='status ok';
+      $('createMsg').textContent='Per-Token plan created. Use Preview with the new planId.';
+    }else{
+      const poolEth = $('poolEth').value;
+      if (!poolEth) throw new Error('pool (ETH) required');
+      const poolWei = toWei(poolEth);
+      tx = await all.record.methods.createPlanFixedPool(propertyId, poolWei, fromDate, toDate)
+            .send({ from: account });
+      $('createMsg').className='status ok';
+      $('createMsg').textContent='Fixed Pool plan created. Use Preview with the new planId.';
+    }
+  }catch(e){
+    $('createMsg').className='status err';
+    $('createMsg').textContent = e?.data?.message || e.message || 'create failed';
+  }
+}
+
+/* --------------- Preview plan --------------- */
+let lastPreview = { recipients:[], balances:[], amounts:[], sumBalances:'0', totalPayout:'0' };
+
+async function onPreview(){
+  const planId = parseInt(($('planIdPrev').value||'0'),10);
+  $('prevMsg').className='status'; $('prevMsg').textContent='—';
+  $('prevBody').innerHTML = `<tr><td colspan="4" class="muted">Loading…</td></tr>`;
+  $('prevSummary').textContent='—';
+  lastPreview = { recipients:[], balances:[], amounts:[], sumBalances:'0', totalPayout:'0' };
+
+  try{
+    if (!planId) throw new Error('planId required');
+    const res = await all.record.methods.previewPlan(planId).call();
+    // returns (recipients[], balances[], amounts[], sumBalances, totalPayout)
+    const recipients = res[0], balances=res[1], amounts=res[2], sumBalances=res[3], totalPayout=res[4];
+    lastPreview = { recipients, balances, amounts, sumBalances, totalPayout };
+
+    if (!recipients.length){
+      $('prevBody').innerHTML = `<tr><td colspan="4" class="muted">No eligible holders.</td></tr>`;
+      $('prevSummary').textContent = 'No eligible holders.';
+      return;
+    }
+
+    let rows='';
+    for (let i=0;i<recipients.length;i++){
+      rows += `<tr>
+        <td>${i+1}</td>
+        <td title="${recipients[i]}">${short(recipients[i])}</td>
+        <td>${balances[i]}</td>
+        <td>${fromWei(amounts[i])}</td>
+      </tr>`;
+    }
+    $('prevBody').innerHTML = rows;
+    $('prevSummary').textContent =
+      `Recipients: ${recipients.length} • Sum Balances: ${lastPreview.sumBalances} • Total Payout (if all in one go): ${fromWei(totalPayout)} ETH`;
+  }catch(e){
+    $('prevBody').innerHTML = `<tr><td colspan="4" class="muted">Failed to preview.</td></tr>`;
+    $('prevMsg').className='status err';
+    $('prevMsg').textContent = e?.data?.message || e.message || 'preview failed';
+  }
+}
+
+/* --------------- Auto-calc ETH for first N --------------- */
+async function onAutoCalc(){
+  const N = parseInt(($('autoN').value||'0'),10);
+  if (!lastPreview.amounts.length){ $('autoMsg').textContent='Run Preview first.'; return; }
+  if (!N){ $('autoMsg').textContent='Enter N.'; return; }
+  let need='0';
+  for (let i=0;i<Math.min(N, lastPreview.amounts.length); i++){
+    need = web3.utils.toBN(need).add(web3.utils.toBN(lastPreview.amounts[i])).toString();
+  }
+  $('autoMsg').textContent = `Need ~ ${fromWei(need)} ETH for first ${Math.min(N,lastPreview.amounts.length)} recipients.`;
+}
+
+/* --------------- Execute batch --------------- */
+async function onExecute(){
+  const planId  = parseInt(($('planIdExec').value||'0'),10);
+  const maxCnt  = parseInt(($('maxCount').value||'0'),10);
+  const ethVal  = $('ethValue').value;
+
+  $('execMsg').className='status'; $('execMsg').textContent='—';
+
+  try{
+    if (!planId) throw new Error('planId required');
+    if (!maxCnt) throw new Error('maxCount required');
+    const valueWei = toWei(ethVal || '0');
+
+    const tx = await all.record.methods.executePlan(planId, maxCnt)
+                  .send({ from: account, value: valueWei });
+
+    $('execMsg').className='status ok';
+    $('execMsg').textContent = 'Execute success. Check History for payouts.';
+  }catch(e){
+    $('execMsg').className='status err';
+    $('execMsg').textContent = e?.data?.message || e.message || 'execute failed';
+  }
+}
+</script>
+</body>
+</html>

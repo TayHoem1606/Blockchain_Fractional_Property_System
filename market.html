@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Marketplace</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.2.7-rc.0/web3.min.js"></script>
+  <script src="contract.js"></script>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Ubuntu,sans-serif;background:linear-gradient(135deg,#667eea,#764ba2);min-height:100vh;padding:16px;color:#111}
+    .shell{max-width:1100px;margin:0 auto}
+    .header{background:rgba(255,255,255,.95);border:1px solid rgba(255,255,255,.25);border-radius:16px;box-shadow:0 16px 40px rgba(0,0,0,.12);padding:14px 16px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center}
+    .brand{font-weight:900;font-size:18px;background:linear-gradient(135deg,#667eea,#764ba2);-webkit-background-clip:text;background-clip:text;color:transparent}
+    .tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+    .tab{padding:8px 12px;border-radius:10px;text-decoration:none;color:#374151;font-weight:700}
+    .tab:hover{background:#f3f4f6}
+    .tab--active{background:#eef2ff;color:#3730a3}
+    .addr{font-size:12px;font-family:ui-monospace, SFMono-Regular, Menlo, monospace;color:#4c51bf;background:#f7fafc;padding:6px 10px;border-radius:10px;border:1px solid #e5e7eb}
+
+    .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 16px 40px rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.25);margin-top:18px}
+    h3{margin:0 0 12px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media (max-width:860px){ .grid{grid-template-columns:1fr} }
+    label{display:block;margin:4px 0 6px 2px;color:#4a5568;font-weight:600}
+    select,input{width:100%;padding:12px;border:2px solid #e5e7eb;border-radius:12px;background:#f9fafb}
+    input:focus,select:focus{outline:none;border-color:#6366f1;background:#fff;box-shadow:0 0 0 3px rgba(99,102,241,.12)}
+    .btn{padding:10px 14px;border:0;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-weight:800;cursor:pointer}
+    .btn:disabled{opacity:.6;cursor:not-allowed}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:12px;border-bottom:1px solid #e5e7eb;text-align:left}
+    th{background:#f9fafb;font-size:14px;color:#374151}
+    .right{text-align:right}
+    .status{margin-top:14px;font-size:14px;padding:10px;border-radius:10px;border:1px dashed #e5e7eb;background:#fafafa}
+    .ok{background:#ecfdf5;color:#065f46;border-color:#a7f3d0}
+    .err{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+    .muted{color:#6b7280}
+    .warn{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+    .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <!-- Header / tabs merged -->
+    <div class="header">
+      <a class="brand" href="profile.html">G4</a>
+      <nav class="tabs" id="tabs"></nav>
+      <div class="addr" id="wallet">—</div>
+    </div>
+
+    <!-- Registration (auto-shown if wallet not registered) -->
+    <div id="regCard" class="card" style="display:none">
+      <h3>Create Account</h3>
+      <p class="muted" style="margin:6px 0 12px">Register your connected wallet to use the marketplace.</p>
+      <div class="row2">
+        <div>
+          <label>Email</label>
+          <input id="regEmail" type="email" placeholder="e.g. you@mail.com"/>
+        </div>
+        <div>
+          <label>Password</label>
+          <input id="regPassword" type="password" placeholder="min 6 chars"/>
+        </div>
+      </div>
+      <div class="row2" style="margin-top:10px">
+        <div>
+          <label>Full Name</label>
+          <input id="regName" placeholder="e.g. Alice Lee"/>
+        </div>
+        <div>
+          <label>Phone</label>
+          <input id="regPhone" placeholder="e.g. +60 12-345 6789"/>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:10px;align-items:center">
+        <button id="registerBtn" class="btn">📝 Register</button>
+        <span id="regMsg" class="muted">—</span>
+      </div>
+    </div>
+
+
+    <!-- Create Listing -->
+    <div class="card">
+      <h3>Create Listing</h3>
+      <div class="grid">
+        <div>
+          <label for="propSelect">Property</label>
+          <select id="propSelect"></select>
+        </div>
+        <div>
+          <label for="sellAmount">Amount (tokens)</label>
+          <input id="sellAmount" type="number" min="1" placeholder="e.g. 10"/>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:10px">
+        <div>
+          <label for="pricePerToken">Price per token (ETH)</label>
+          <input id="pricePerToken" type="number" step="0.000000000000000001" placeholder="e.g. 0.05"/>
+        </div>
+        <div style="display:flex;align-items:end;gap:10px">
+          <button class="btn" id="btnList">List for Sale</button>
+        </div>
+      </div>
+      <div id="listMsg" class="status">—</div>
+    </div>
+
+    <!-- Active Listings -->
+    <div class="card">
+      <h3>Active Listings</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Property</th><th>Seller</th><th class="right">Amount</th>
+            <th class="right">Price/Token (ETH)</th><th class="right">Total (ETH)</th><th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="listingBody">
+          <tr><td colspan="7" class="muted">No listings yet.</td></tr>
+        </tbody>
+      </table>
+      <div id="marketMsg" class="status">—</div>
+    </div>
+  </div>
+
+  <script>
+    // ===== basic state =====
+    let web3, account, all, chainKey, userMgr;
+
+    const $ = id => document.getElementById(id);
+    const short = a => a ? a.slice(0,6)+'…'+a.slice(-4) : '';
+
+    // simple localStorage listing store (by chain)
+    const LS_KEY = (chain)=>`market_listings_${chain||'unknown'}`;
+    const loadListings = ()=> JSON.parse(localStorage.getItem(LS_KEY(chainKey)) || '[]');
+    const saveListings = (arr)=> localStorage.setItem(LS_KEY(chainKey), JSON.stringify(arr));
+
+    // ===== boot =====
+    (async function init(){
+      if(!window.ethereum){ alert('Please install MetaMask'); return; }
+      await ethereum.request({method:'eth_requestAccounts'});
+      web3 = new Web3(window.ethereum);
+      [account] = await web3.eth.getAccounts();
+      const net = await web3.eth.getChainId();
+      chainKey = String(net);
+      $('wallet').textContent = short(account);
+
+      // build all contracts
+      all = await getContracts(web3);
+      // default UserManager (same selectors you used on login page) :contentReference[oaicite:2]{index=2} :contentReference[oaicite:3]{index=3}
+      userMgr = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
+
+      ethereum.on?.('accountsChanged', ()=>location.reload());
+      ethereum.on?.('chainChanged',  ()=>location.reload());
+
+      await buildTabs();
+      await ensureRegistrationState();  // show reg card if needed
+      await fillPropertySelect();
+      renderListings();
+
+      $('btnList').onclick = createListing;
+      $('registerBtn').onclick = registerUser;
+    })();
+
+    // ===== header tabs =====
+    async function buildTabs(){
+      let isAdmin=false;
+      try{ isAdmin = await userMgr.methods.isAdmin(account).call(); }catch{}
+      const base = [
+        {href:'buy.html',label:'Buy Property'},
+        {href:'market.html',label:'Marketplace'},
+        {href:'history.html',label:'Transaction History'},
+      ];
+      const admin = [
+        {href:'create.html',label:'Create Property'},
+        {href:'plan.html',label:'Distribution Plan'}
+      ];
+      const links = isAdmin ? base.concat(admin) : base;
+      const here = location.pathname.split('/').pop().toLowerCase();
+      $('tabs').innerHTML = links.map(l=>{
+        const act = (l.href.split('/').pop().toLowerCase()===here)?' tab--active':'';
+        return `<a class="tab${act}" href="${l.href}">${l.label}</a>`;
+      }).join('');
+    }
+
+    // ===== registration visibility =====
+    async function ensureRegistrationState(){
+      try{
+        const reg = await userMgr.methods.isRegistered(account).call();
+        $('regCard').style.display = reg ? 'none' : '';
+        if (!reg) {
+          // if unregistered, disable listing UI
+          $('btnList').disabled = true;
+          $('listMsg').textContent = 'Please register first to create listings.';
+        } else {
+          $('btnList').disabled = false;
+          $('listMsg').textContent = '—';
+        }
+      }catch(e){
+        $('regCard').style.display = '';
+        $('btnList').disabled = true;
+      }
+    }
+
+    // ===== register wallet (User) =====
+    async function registerUser(){
+      const email = $('regEmail').value.trim();
+      const pw    = $('regPassword').value;
+      const name  = $('regName').value.trim();
+      const phone = $('regPhone').value.trim();
+
+      const msg = $('regMsg');
+      msg.textContent = 'Registering…';
+      try{
+        if(!email || !pw || !name || !phone) throw new Error('Please fill in all fields');
+        if(pw.length<6) throw new Error('Password must be at least 6 characters');
+
+        // estimate with buffer
+        let gas;
+        try{
+          gas = await userMgr.methods.registerUser(email, pw, name, phone)
+            .estimateGas({ from: account });
+          gas = Math.floor(gas * 1.3);
+        }catch{ gas = 500000; }
+
+        await userMgr.methods.registerUser(email, pw, name, phone)
+          .send({ from: account, gas });
+
+        msg.textContent = 'Registration successful! You can now list & trade.';
+        await ensureRegistrationState();
+        await fillPropertySelect();
+      }catch(e){
+        msg.textContent = e?.data?.message || e.message || 'Registration failed';
+      }
+    }
+
+    // ===== properties + balances =====
+    async function fillPropertySelect(){
+      const sel = $('propSelect');
+      sel.innerHTML = '';
+      try{
+        const lastId = await all.createProp.methods.getLastPropertyId().call();
+        for(let i=1;i<=lastId;i++){
+          try{
+            const prop = await all.createProp.methods.getProperty(i).call();
+            // only show if user owns > 0 (you can allow zero if you want to let users create "buy" listings later)
+            const bal  = await all.purchase.methods.getUserBalance(i, account).call();
+            if (web3.utils.toBN(bal).isZero()) continue;
+            const priceEth = web3.utils.fromWei(prop.price.toString(),'ether');
+            const opt = document.createElement('option');
+            opt.value = String(i);
+            opt.textContent = `#${i} • ${prop.name} (${prop.location}) • You own: ${bal} • Price: ${priceEth} ETH total`;
+            sel.appendChild(opt);
+          }catch{}
+        }
+        if(!sel.options.length){
+          const opt = document.createElement('option');
+          opt.value = ''; opt.textContent = 'No holdings available to list';
+          sel.appendChild(opt);
+          $('btnList').disabled = true;
+        }
+      }catch(e){
+        $('listMsg').className='status err';
+        $('listMsg').textContent=e.message||'Failed to load properties';
+      }
+    }
+
+    // ===== create listing (stored in localStorage) =====
+    async function createListing(){
+      const propId = parseInt($('propSelect').value||'0',10);
+      const amount = parseInt($('sellAmount').value||'0',10);
+      const pEth   = $('pricePerToken').value.trim();
+
+      if(!propId || !amount || !pEth){
+        $('listMsg').className='status err';
+        $('listMsg').textContent='Fill in all fields';
+        return;
+      }
+
+      // Ensure user owns enough
+      try{
+        const bal = await all.purchase.methods.getUserBalance(propId, account).call();
+        if (web3.utils.toBN(bal).lt(web3.utils.toBN(amount))) {
+          $('listMsg').className='status err';
+          $('listMsg').textContent='You do not own that many tokens.';
+          console.log("testing");
+          return;
+        }
+      }catch{
+        console.log("testing12");
+      }
+
+      console.log("skiped testing");
+
+      const pricePerTokenWei = web3.utils.toWei(pEth, 'ether');
+      const listings = loadListings();
+      const id = Date.now().toString(); // simple unique id
+
+      listings.push({ id, propId, amount, pricePerTokenWei, seller: account });
+      saveListings(listings);
+
+      $('listMsg').className='status ok';
+      $('listMsg').textContent='Listing created.';
+      $('sellAmount').value='';
+      $('pricePerToken').value='';
+      renderListings();
+    }
+
+    // ===== render listings =====
+    async function renderListings(){
+      const body = $('listingBody');
+      const data = loadListings().filter(x=> x.amount>0); // active only
+
+      if(!data.length){
+        body.innerHTML = `<tr><td colspan="7" class="muted">No listings yet.</td></tr>`;
+        return;
+      }
+
+      let rows = '';
+      for (const l of data){
+        try{
+          const prop = await all.createProp.methods.getProperty(l.propId).call();
+          const pEth = web3.utils.fromWei(l.pricePerTokenWei,'ether');
+          const totalEth = (Number(pEth) * Number(l.amount)).toString();
+
+          const isMine = (l.seller.toLowerCase() === account.toLowerCase());
+          const actionBtn = isMine
+            ? `<button class="btn" onclick="cancelListing('${l.id}')">Cancel</button>`
+            : `<button class="btn" onclick="buyListing('${l.id}')">Buy</button>`;
+
+          rows += `
+            <tr>
+              <td>#${l.propId} • ${prop.name} (${prop.location})</td>
+              <td>${short(l.seller)}</td>
+              <td class="right">${l.amount}</td>
+              <td class="right">${pEth}</td>
+              <td class="right">${totalEth}</td>
+              <td>${actionBtn}</td>
+            </tr>`;
+        }catch{/* ignore */ }
+      }
+      body.innerHTML = rows || `<tr><td colspan="7" class="muted">No listings yet.</td></tr>`;
+    }
+
+    // ===== cancel (seller only) =====
+    function cancelListing(id){
+      const arr = loadListings();
+      const idx = arr.findIndex(x=>x.id===id && x.seller.toLowerCase()===account.toLowerCase());
+      if (idx<0) return;
+      arr.splice(idx,1);
+      saveListings(arr);
+      renderListings();
+    }
+
+    // ===== buy flow (send ETH then transfer tokens) =====
+    async function buyListing(id){
+      const arr = loadListings();
+      const item = arr.find(x=>x.id===id);
+      if(!item) return;
+
+      // require buyer to be registered too (keeps UX consistent with your login/register flow) :contentReference[oaicite:4]{index=4}
+      try{
+        const reg = await userMgr.methods.isRegistered(account).call();
+        if(!reg){
+          $('marketMsg').className='status err';
+          $('marketMsg').textContent='Please register before buying.';
+          return;
+        }
+      }catch{}
+
+      $('marketMsg').className='status';
+      $('marketMsg').textContent='Sending payment… confirm in wallet.';
+
+      try{
+        const total = web3.utils.toBN(item.pricePerTokenWei).mul(web3.utils.toBN(item.amount));
+
+        // 1) send ETH to seller (non-atomic demo)
+        await web3.eth.sendTransaction({
+          from: account,
+          to:   item.seller,
+          value: total.toString()
+        });
+
+        // 2) transfer tokens using your purchase.transfer(buyer, seller, propertyId, amount)
+        await all.purchase.methods.transfer(account, item.seller, item.propId, item.amount)
+          .send({ from: account });
+
+        // remove listing
+        const next = arr.filter(x=>x.id!==id);
+        saveListings(next);
+        renderListings();
+
+        $('marketMsg').className='status ok';
+        $('marketMsg').textContent='Purchase complete: payment sent and tokens transferred.';
+      }catch(e){
+        $('marketMsg').className='status err';
+        $('marketMsg').textContent = e?.data?.message || e.message || 'Purchase failed';
+      }
+    }
+
+    // expose for buttons
+    window.buyListing = buyListing;
+    window.cancelListing = cancelListing;
+  </script>
+</body>
+</html>

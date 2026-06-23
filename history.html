@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Transaction History</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.2.7-rc.0/web3.min.js"></script>
+<script src="contract.js"></script>
+<style>
+  :root{--bg1:#667eea;--bg2:#764ba2;--ink:#111;--muted:#6b7280;--line:#e5e7eb;--soft:#f9fafb;--pill:#eef2ff;--pillink:#3730a3}
+  body{font-family:system-ui,Segoe UI,Roboto,Ubuntu,sans-serif;background:linear-gradient(135deg,var(--bg1),var(--bg2));min-height:100vh;margin:0;padding:16px;color:var(--ink)}
+  .wrap{max-width:1100px;margin:0 auto}
+  .header{background:#fff;border-radius:16px;padding:14px 16px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;box-shadow:0 16px 40px rgba(0,0,0,.12)}
+  .brand{font-weight:900;font-size:18px;background:linear-gradient(135deg,var(--bg1),var(--bg2));-webkit-background-clip:text;background-clip:text;color:transparent;text-decoration:none}
+  .tabs{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+  .tab{padding:8px 12px;border-radius:10px;text-decoration:none;color:#374151;font-weight:700}
+  .tab:hover{background:#f3f4f6}
+  .tab--active{background:var(--pill);color:var(--pillink)}
+  .addr{font-size:12px;font-family:ui-monospace,Menlo,monospace;color:#4c51bf;background:#f7fafc;padding:6px 10px;border-radius:10px;border:1px solid var(--line)}
+  .card{background:#fff;border-radius:16px;padding:20px;box-shadow:0 16px 40px rgba(0,0,0,.12);border:1px solid rgba(255,255,255,.25);margin-top:18px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}
+  th{background:var(--soft);color:#374151}
+  h3{margin:0 0 12px}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .btn{padding:8px 12px;border:0;border-radius:10px;background:linear-gradient(135deg,var(--bg1),var(--bg2));color:#fff;font-weight:800;cursor:pointer}
+  input{padding:10px;border:2px solid var(--line);border-radius:10px}
+  .status{margin-top:10px;font-size:14px;padding:10px;border-radius:10px;border:1px dashed var(--line);background:#fafafa}
+  .err{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+  .muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <a class="brand" href="profile.html">G4</a>
+    <nav class="tabs" id="tabs"></nav>
+    <div class="addr" id="wallet">—</div>
+  </div>
+
+  <!-- My History -->
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <h3 style="margin:0">My History</h3>
+      <div class="row">
+        <button class="btn" id="refreshMe">Refresh</button>
+      </div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>When</th><th>Type</th><th>Property</th><th>Amount</th><th>Value (ETH)</th><th>Addr A</th><th>Addr B</th><th>Meta</th>
+        </tr>
+      </thead>
+      <tbody id="meBody"><tr><td colspan="8" class="muted">—</td></tr></tbody>
+    </table>
+    <div id="meMsg" class="status">—</div>
+  </div>
+
+
+<script>
+let web3, account, all;
+
+const $=id=>document.getElementById(id);
+const short=a=>a?a.slice(0,6)+'…'+a.slice(-4):'';
+const fromWei = (w)=>{ try{ return web3.utils.fromWei(String(w),'ether'); }catch{ return '0'; } };
+const asNum = (x)=>Number(x || 0);
+const asStr = (x)=> (x===undefined || x===null) ? '' : String(x);
+const ts  = (x)=> new Date(Number(x)*1000).toLocaleString();
+
+const TX = ['Buy','Sell','TransferIn','TransferOut','DividendIn','DividendOut','Admin','ListingCreated','ListingBought'];
+
+(async function init(){
+  if(!window.ethereum){ alert('Please install MetaMask'); return; }
+  await ethereum.request({method:'eth_requestAccounts'});
+  web3 = new Web3(window.ethereum);
+  [account] = await web3.eth.getAccounts();
+  $('wallet').textContent = short(account);
+
+  all = await getContracts(web3);  // { userManager, createProp, tokenise, purchase, record, history }
+
+  ethereum.on?.('accountsChanged',()=>location.reload());
+  ethereum.on?.('chainChanged', ()=>location.reload());
+
+  await buildTabs();
+
+  $('refreshMe').onclick  = loadMyHistory;
+  $('loadProp').onclick   = ()=>loadPropHistory();
+  $('refreshProp').onclick= ()=>loadPropHistory();
+
+  await loadMyHistory();
+})();
+
+async function buildTabs(){
+  let isAdmin=false;
+  try{ isAdmin = await all.userManager.methods.isAdmin(account).call(); }catch{}
+  const items = [
+    {href:'buy.html',label:'Buy Property'},
+    {href:'market.html',label:'Marketplace'},
+    {href:'history.html',label:'Transaction History'},
+  ];
+  if(isAdmin){
+    items.push({href:'create.html',label:'Create Property'});
+    items.push({href:'plan.html',label:'Distribution Plan'});
+  }
+  const here = location.pathname.split('/').pop().toLowerCase();
+  $('tabs').innerHTML = items.map(l=>{
+    const act = (l.href.split('/').pop().toLowerCase()===here)?' tab--active':'';
+    return `<a class="tab${act}" href="${l.href}">${l.label}</a>`;
+  }).join('');
+}
+
+/* ----------------- Flexible callers (no backend changes) ----------------- */
+function hasMethod(c, name){ return !!(c && c.methods && c.methods[name]); }
+
+async function callMyHistory(){
+  const h = all.history;
+  if (hasMethod(h,'getMyHistory'))                return await h.methods.getMyHistory(0,100).call({from:account});
+
+  throw new Error('No supported "my history" getter found in History contract.');
+}
+
+async function callPropertyHistory(pid){
+  const h = all.history;
+  if (hasMethod(h,'getPropertyHistory'))          return await h.methods.getPropertyHistory(pid,0,100).call();
+  throw new Error('No supported "property history" getter found in History contract.');
+}
+
+/* ----------------- Normalizers for tuple/struct shapes ----------------- */
+async function readPropName(propertyId){
+  try{
+    if (!propertyId || propertyId==='0') return '—';
+    const p = await all.createProp.methods.getProperty(propertyId).call();
+    return p.name || ('#'+propertyId);
+  }catch{ return '—'; }
+}
+
+function normEntryTuple(e){
+  // Tuple shape you showed: (uint8,uint256,uint256,uint256,address,address,uint40,uint64,string)
+  // [0]=txType, [1]=propertyId, [2]=amount, [3]=valueWei, [4]=addrA, [5]=addrB, [6]=timestamp, [7]=planId, [8]=meta
+  const obj = (typeof e === 'object' && e.txType !== undefined) ? e : null;
+  return {
+    txType:     obj ? asNum(e.txType)     : asNum(e[0]),
+    propertyId: obj ? asStr(e.propertyId) : asStr(e[1]),
+    amount:     obj ? asStr(e.amount)     : asStr(e[2]),
+    valueWei:   obj ? asStr(e.valueWei)   : asStr(e[3]),
+    addrA:      obj ? asStr(e.user||e.addrA||e.from) : asStr(e[4]),
+    addrB:      obj ? asStr(e.counterparty||e.addrB||e.to) : asStr(e[5]),
+    timestamp:  obj ? asStr(e.timestamp)  : asStr(e[6]),
+    planId:     obj ? asStr(e.planId)     : asStr(e[7]),
+    meta:       obj ? asStr(e.meta)       : asStr(e[8])
+  };
+}
+
+/* ----------------- Renderers ----------------- */
+async function loadMyHistory(){
+  const body=$('meBody'), msg=$('meMsg');
+  body.innerHTML = `<tr><td colspan="8" class="muted">Loading…</td></tr>`;
+  msg.textContent='—'; msg.className='status';
+
+  try{
+    const arr = await callMyHistory(); // returns Entry[] (tuple/struct)
+    if (!arr || !arr.length){
+      body.innerHTML = `<tr><td colspan="8" class="muted">No records yet.</td></tr>`;
+      return;
+    }
+    let rows = '';
+    for (const raw of arr){
+      const e = normEntryTuple(raw);
+      const pname = await readPropName(e.propertyId);
+      rows += `<tr>
+        <td>${ts(e.timestamp)}</td>
+        <td>${TX[e.txType] ?? e.txType}</td>
+        <td>${e.propertyId==='0'?'—':('#'+e.propertyId+' • '+pname)}</td>
+        <td>${e.amount}</td>
+        <td>${fromWei(e.valueWei)}</td>
+        <td>${e.addrA ? short(e.addrA) : '—'}</td>
+        <td>${e.addrB ? short(e.addrB) : '—'}</td>
+        <td>${e.meta||'—'}</td>
+      </tr>`;
+    }
+    body.innerHTML = rows;
+  }catch(err){
+    body.innerHTML = `<tr><td colspan="8" class="muted">Failed to load.</td></tr>`;
+    msg.className='status err';
+    msg.textContent = err?.data?.message || err.message || String(err);
+  }
+}
+
+async function loadPropHistory(){
+  const body=$('propBody'), msg=$('propMsg');
+  body.innerHTML = `<tr><td colspan="7" class="muted">Loading…</td></tr>`;
+  msg.textContent='—'; msg.className='status';
+
+  const pid = parseInt(($('propId').value||'0'),10);
+  if(!pid){ body.innerHTML = `<tr><td colspan="7" class="muted">Enter a Property ID.</td></tr>`; return; }
+
+  try{
+    const arr = await callPropertyHistory(pid);
+    if (!arr || !arr.length){
+      body.innerHTML = `<tr><td colspan="7" class="muted">No records for this property.</td></tr>`;
+      return;
+    }
+    let rows = '';
+    for (const raw of arr){
+      const e = normEntryTuple(raw);
+      rows += `<tr>
+        <td>${ts(e.timestamp)}</td>
+        <td>${e.addrA ? short(e.addrA) : '—'}</td>
+        <td>${TX[e.txType] ?? e.txType}</td>
+        <td>${e.amount}</td>
+        <td>${fromWei(e.valueWei)}</td>
+        <td>${e.addrB ? short(e.addrB) : '—'}</td>
+        <td>${e.meta||'—'}</td>
+      </tr>`;
+    }
+    body.innerHTML = rows;
+  }catch(err){
+    body.innerHTML = `<tr><td colspan="7" class="muted">Failed to load.</td></tr>`;
+    msg.className='status err';
+    msg.textContent = err?.data?.message || err.message || String(err);
+  }
+}
+</script>
+</body>
+</html>
